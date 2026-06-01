@@ -1,0 +1,27 @@
+[project]
+name = "teachermarket-api"
+version = "0.1.0"
+description = "FastAPI backend for Teachermarket"
+requires-python = ">=3.11"
+dependencies = [
+  "alembic>=1.13.2",
+  "asyncpg>=0.29.0",
+  "fastapi>=0.111.0",
+  "pydantic-settings>=2.2.1",
+  "python-multipart>=0.0.9",
+  "sqlalchemy[asyncio]>=2.0.30",
+  "uvicorn[standard]>=0.30.0"
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.2.0"
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*"]

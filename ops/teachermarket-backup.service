@@ -1,0 +1,12 @@
+[Unit]
+Description=TeacherMarket PostgreSQL and storage backup
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+Environment=APP_DIR=/srv/teachermarket/api
+Environment=BACKUP_ROOT=/srv/teachermarket/backups
+ExecStart=/srv/teachermarket/scripts/backup.sh
+Nice=10
+IOSchedulingClass=best-effort

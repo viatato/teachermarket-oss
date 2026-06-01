@@ -1,0 +1,63 @@
+- name: bug
+  color: "d73a4a"
+  description: Something is broken.
+- name: enhancement
+  color: "a2eeef"
+  description: New feature or improvement.
+- name: good first issue
+  color: "7057ff"
+  description: Good for first-time contributors.
+- name: help wanted
+  color: "008672"
+  description: Maintainer would welcome contributor help.
+- name: documentation
+  color: "0075ca"
+  description: Documentation updates.
+- name: security
+  color: "d73a4a"
+  description: Security hardening or non-sensitive security work.
+- name: backend
+  color: "1d76db"
+  description: FastAPI, database, services, or migrations.
+- name: database
+  color: "5319e7"
+  description: PostgreSQL, Alembic, seed data, and schema changes.
+- name: frontend
+  color: "c5def5"
+  description: React/Vite Mini App.
+- name: bot
+  color: "bfdadc"
+  description: Telegram bot.
+- name: payments
+  color: "fbca04"
+  description: Subscription payment providers or future payment design.
+- name: storage
+  color: "0e8a16"
+  description: Local, S3, R2, previews, or product files.
+- name: moderation
+  color: "5319e7"
+  description: Admin and moderation workflows.
+- name: mvp
+  color: "fef2c0"
+  description: Required for v0.1 beta.
+- name: codex-friendly
+  color: "b60205"
+  description: Well-scoped task for AI-assisted contribution.
+- name: community-feedback
+  color: "d4c5f9"
+  description: Feedback from teachers or beta testers.
+- name: self-hosting
+  color: "006b75"
+  description: Setup, deployment, Docker, or operations.
+- name: tests
+  color: "5319e7"
+  description: Automated or manual test coverage.
+- name: ci
+  color: "c2e0c6"
+  description: Continuous integration.
+- name: admin
+  color: "bfd4f2"
+  description: Admin panel, RBAC, or audit workflows.
+- name: subscriptions
+  color: "f9d0c4"
+  description: Author subscription plans or billing.

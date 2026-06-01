@@ -1,0 +1,107 @@
+.bottom-nav {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(198, 216, 229, 0.95);
+  border-radius: 18px;
+  bottom: calc(10px + env(safe-area-inset-bottom));
+  box-shadow: 0 14px 34px rgba(37, 63, 82, 0.18);
+  display: grid;
+  gap: 4px;
+  grid-template-columns: repeat(4, 1fr);
+  left: 10px;
+  padding: 6px;
+  position: fixed;
+  right: 10px;
+  z-index: 20;
+}
+
+.nav-brand-mark {
+  align-items: center;
+  background: linear-gradient(135deg, #1768ff, #17c8b4);
+  border-radius: 10px;
+  box-shadow: 0 10px 20px rgba(23, 92, 211, 0.18);
+  color: #fff;
+  display: none;
+  font-size: 0.78rem;
+  font-weight: 950;
+  height: 34px;
+  justify-content: center;
+  width: 34px;
+}
+
+.bottom-nav button {
+  align-items: center;
+  background: transparent;
+  border-radius: 12px;
+  color: #667789;
+  display: grid;
+  font-size: 0.74rem;
+  font-weight: 850;
+  gap: 3px;
+  justify-items: center;
+  line-height: 1.1;
+  min-height: 50px;
+  padding: 5px 2px;
+  position: relative;
+}
+
+.nav-home-short {
+  display: inline;
+}
+
+.nav-home-label {
+  display: none;
+}
+
+.bottom-nav button.is-active {
+  background: var(--brand-soft);
+  color: var(--brand);
+}
+
+.nav-badge {
+  align-items: center;
+  background: var(--danger-text);
+  border: 2px solid #fff;
+  border-radius: 999px;
+  color: #fff;
+  display: inline-flex;
+  font-size: 0.68rem;
+  font-weight: 900;
+  height: 20px;
+  justify-content: center;
+  min-width: 20px;
+  padding: 0 5px;
+  position: absolute;
+  right: 10px;
+  top: 3px;
+}
+
+@media (min-width: 721px) {
+  .bottom-nav {
+    bottom: 18px;
+    grid-template-columns: auto repeat(4, minmax(0, 1fr));
+    left: 50%;
+    max-width: 680px;
+    right: auto;
+    transform: translateX(-50%);
+    width: calc(100% - 36px);
+  }
+
+  .bottom-nav button {
+    display: flex;
+    font-size: 0.88rem;
+    gap: 8px;
+  }
+
+  .nav-brand-mark {
+    display: inline-flex;
+  }
+
+  .nav-home-short {
+    display: none;
+  }
+
+  .nav-home-label {
+    display: inline;
+  }
+}
