@@ -13,8 +13,8 @@ from app.db.models import OneTimePlacement, Product, User
 from app.dependencies import get_current_user, require_admin
 from app.main import create_app
 from app.modules.products.service import FREE_VISIBLE_PRODUCT_LIMIT, visible_product_condition
-from app.modules.sellers.router import buy_product_placement, read_seller_placements
-from app.modules.sellers.service import ONE_TIME_PLACEMENT_AMOUNT, buy_one_time_placement
+from app.modules.sellers.router import buy_product_placement, read_seller_placements, read_seller_product_visibility
+from app.modules.sellers.service import ONE_TIME_PLACEMENT_AMOUNT, buy_one_time_placement, get_seller_product_visibility
 from app.modules.subscriptions.service import activate_or_extend_subscription, subscription_visibility_cutoff
 
 
@@ -164,7 +164,7 @@ class PlacementFeatureTests(unittest.TestCase):
 
     def test_seller_placement_routes_require_current_user_not_admin(self) -> None:
         app = create_app()
-        for endpoint in (buy_product_placement, read_seller_placements):
+        for endpoint in (buy_product_placement, read_seller_placements, read_seller_product_visibility):
             route = next(route for route in app.routes if isinstance(route, APIRoute) and route.endpoint is endpoint)
             dependency_calls = {dependency.call for dependency in route.dependant.dependencies}
             self.assertIn(get_current_user, dependency_calls)
@@ -236,6 +236,194 @@ class PlacementFeatureTests(unittest.TestCase):
         self.assertIn("products_1.created_at < products.created_at", sql)
         self.assertIn("products_1.id <= products.id", sql)
         self.assertIn(f"<= {FREE_VISIBLE_PRODUCT_LIMIT}", sql)
+
+    def visibility_product(self, *, status: str = "published") -> Product:
+        return Product(
+            id=uuid4(),
+            seller_id=uuid4(),
+            status=status,
+            created_at=datetime(2026, 6, 4, 10, 0, tzinfo=UTC),
+        )
+
+    def visibility_subscription(self, *, status: str = "active", expires_at=None):
+        return SimpleNamespace(id=uuid4(), status=status, expires_at=expires_at)
+
+    def visibility_placement(self, product: Product) -> OneTimePlacement:
+        return OneTimePlacement(
+            id=uuid4(),
+            product_id=product.id,
+            seller_id=product.seller_id,
+            paid_amount=ONE_TIME_PLACEMENT_AMOUNT,
+            currency="UAH",
+            status="active",
+        )
+
+    def compute_visibility(
+        self,
+        product: Product | None,
+        *,
+        visible_subscription=None,
+        reported_subscription=None,
+        placement=None,
+        published_rank: int | None = None,
+    ) -> tuple[dict, bool]:
+        async def run_check() -> tuple[dict, bool]:
+            class FakeDb:
+                def __init__(self):
+                    self.values = [product]
+                    if product is not None:
+                        self.values.append(visible_subscription)
+                        if visible_subscription is None:
+                            self.values.append(reported_subscription)
+                        self.values.append(placement)
+                        if product.status == "published":
+                            self.values.append(published_rank)
+
+                async def scalar(self, _query):
+                    return self.values.pop(0)
+
+            seller_id = product.seller_id if product else uuid4()
+            cleanup = AsyncMock(return_value=None)
+            with (
+                patch(
+                    "app.modules.sellers.service.require_seller_profile",
+                    AsyncMock(return_value=SimpleNamespace(id=seller_id)),
+                ),
+                patch("app.modules.products.service.cleanup_catalog_subscriptions", cleanup),
+            ):
+                result = await get_seller_product_visibility(
+                    FakeDb(),
+                    User(id=uuid4(), telegram_id=123),
+                    product.id if product else uuid4(),
+                )
+            return result, cleanup.await_count == 1
+
+        return asyncio.run(run_check())
+
+    def test_visibility_status_reports_active_paid_subscription(self) -> None:
+        product = self.visibility_product()
+        subscription = self.visibility_subscription(expires_at=datetime.now(UTC) + timedelta(days=5))
+
+        result, cleanup_called = self.compute_visibility(
+            product,
+            visible_subscription=subscription,
+            placement=None,
+            published_rank=4,
+        )
+
+        self.assertTrue(cleanup_called)
+        self.assertTrue(result["is_visible"])
+        self.assertEqual(result["primary_reason"], "paid_subscription")
+        self.assertEqual(result["reasons"], ["paid_subscription"])
+        self.assertTrue(result["has_paid_subscription_visibility"])
+        self.assertEqual(result["subscription_status"], "active")
+        self.assertEqual(result["published_rank"], 4)
+
+    def test_visibility_status_reports_subscription_grace(self) -> None:
+        product = self.visibility_product()
+        expires_at = datetime.now(UTC) - timedelta(days=2)
+        subscription = self.visibility_subscription(expires_at=expires_at)
+
+        result, _cleanup_called = self.compute_visibility(
+            product,
+            visible_subscription=subscription,
+            placement=None,
+            published_rank=4,
+        )
+
+        self.assertTrue(result["is_visible"])
+        self.assertEqual(result["primary_reason"], "subscription_grace")
+        self.assertEqual(result["subscription_grace_until"], expires_at + timedelta(days=7))
+        self.assertTrue(result["has_paid_subscription_visibility"])
+
+    def test_visibility_status_reports_expired_after_grace_hidden(self) -> None:
+        product = self.visibility_product()
+        expires_at = datetime.now(UTC) - timedelta(days=8)
+        subscription = self.visibility_subscription(status="expired", expires_at=expires_at)
+
+        result, _cleanup_called = self.compute_visibility(
+            product,
+            visible_subscription=None,
+            reported_subscription=subscription,
+            placement=None,
+            published_rank=4,
+        )
+
+        self.assertFalse(result["is_visible"])
+        self.assertEqual(result["primary_reason"], "hidden_after_grace")
+        self.assertEqual(result["reasons"], ["hidden_after_grace"])
+        self.assertFalse(result["has_paid_subscription_visibility"])
+        self.assertEqual(result["subscription_status"], "expired")
+
+    def test_visibility_status_reports_active_one_time_placement(self) -> None:
+        product = self.visibility_product()
+        placement = self.visibility_placement(product)
+
+        result, _cleanup_called = self.compute_visibility(
+            product,
+            visible_subscription=None,
+            reported_subscription=None,
+            placement=placement,
+            published_rank=4,
+        )
+
+        self.assertTrue(result["is_visible"])
+        self.assertEqual(result["primary_reason"], "one_time_placement")
+        self.assertTrue(result["has_active_placement"])
+        self.assertEqual(result["active_placement_id"], placement.id)
+
+    def test_visibility_status_reports_free_tier(self) -> None:
+        product = self.visibility_product()
+
+        result, _cleanup_called = self.compute_visibility(
+            product,
+            visible_subscription=None,
+            reported_subscription=None,
+            placement=None,
+            published_rank=3,
+        )
+
+        self.assertTrue(result["is_visible"])
+        self.assertEqual(result["primary_reason"], "free_tier")
+        self.assertEqual(result["reasons"], ["free_tier"])
+        self.assertEqual(result["free_tier_limit"], FREE_VISIBLE_PRODUCT_LIMIT)
+
+    def test_visibility_status_reports_draft_as_not_published(self) -> None:
+        product = self.visibility_product(status="draft")
+
+        result, _cleanup_called = self.compute_visibility(
+            product,
+            visible_subscription=None,
+            reported_subscription=None,
+            placement=None,
+        )
+
+        self.assertFalse(result["is_visible"])
+        self.assertEqual(result["primary_reason"], "not_published")
+        self.assertEqual(result["reasons"], ["not_published"])
+        self.assertIsNone(result["published_rank"])
+
+    def test_visibility_status_missing_or_non_owner_product_returns_404(self) -> None:
+        async def run_check() -> tuple[int, str]:
+            class FakeDb:
+                async def scalar(self, _query):
+                    return None
+
+            cleanup = AsyncMock(return_value=None)
+            with (
+                patch(
+                    "app.modules.sellers.service.require_seller_profile",
+                    AsyncMock(return_value=SimpleNamespace(id=uuid4())),
+                ),
+                patch("app.modules.products.service.cleanup_catalog_subscriptions", cleanup),
+            ):
+                with self.assertRaises(Exception) as raised:
+                    await get_seller_product_visibility(FakeDb(), User(id=uuid4(), telegram_id=123), uuid4())
+            return raised.exception.status_code, raised.exception.detail
+
+        status_code, detail = asyncio.run(run_check())
+        self.assertEqual(status_code, 404)
+        self.assertEqual(detail, "Матеріал не знайдено.")
 
 
 if __name__ == "__main__":

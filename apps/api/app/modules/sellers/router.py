@@ -12,6 +12,7 @@ from app.modules.sellers.schemas import (
     SellerPlacementResponse,
     SellerPlacementsResponse,
     SellerProductResponse,
+    SellerProductVisibilityResponse,
     SellerProfileCreate,
     SellerProfileResponse,
     SellerProfileUpdate,
@@ -24,6 +25,7 @@ from app.modules.sellers.service import (
     buy_one_time_placement,
     create_seller_profile,
     get_seller_profile,
+    get_seller_product_visibility,
     get_seller_stats,
     get_seller_subscription_state,
     list_seller_contact_requests,
@@ -185,6 +187,17 @@ async def read_seller_products(
 ) -> list[SellerProductResponse]:
     products = await list_seller_products(db, current_user)
     return [seller_product_response(product) for product in products]
+
+
+@router.get("/products/{product_id}/visibility", response_model=SellerProductVisibilityResponse)
+async def read_seller_product_visibility(
+    product_id: UUID,
+    db: DatabaseSession,
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> SellerProductVisibilityResponse:
+    return SellerProductVisibilityResponse(
+        **await get_seller_product_visibility(db, current_user, product_id)
+    )
 
 
 @router.post("/products/{product_id}/buy-placement", response_model=SellerPlacementPurchaseResponse)

@@ -2,7 +2,7 @@ from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -107,6 +107,115 @@ async def list_seller_products(db: AsyncSession, user: User) -> list[Product]:
         .order_by(Product.created_at.desc())
     )
     return list(result)
+
+
+def subscription_grace_until(expires_at: datetime | None) -> datetime | None:
+    if expires_at is None:
+        return None
+
+    from app.modules.subscriptions.service import SUBSCRIPTION_VISIBILITY_GRACE_PERIOD
+
+    return expires_at + SUBSCRIPTION_VISIBILITY_GRACE_PERIOD
+
+
+def subscription_visibility_reason(subscription: Subscription, now: datetime) -> str:
+    if subscription.expires_at is not None and subscription.expires_at < now:
+        return "subscription_grace"
+    return "paid_subscription"
+
+
+async def get_seller_product_visibility(db: AsyncSession, user: User, product_id: UUID) -> dict:
+    profile = await require_seller_profile(db, user)
+    product = await db.scalar(select(Product).where(Product.id == product_id, Product.seller_id == profile.id))
+    if product is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Матеріал не знайдено.")
+
+    from app.modules.products.service import FREE_VISIBLE_PRODUCT_LIMIT, cleanup_catalog_subscriptions
+    from app.modules.subscriptions.service import subscription_visibility_cutoff
+
+    await cleanup_catalog_subscriptions(db)
+    now = datetime.now(UTC)
+    cutoff = subscription_visibility_cutoff(now)
+
+    visible_subscription = await db.scalar(
+        select(Subscription)
+        .join(SubscriptionPlan, Subscription.plan_id == SubscriptionPlan.id)
+        .where(
+            Subscription.seller_id == profile.id,
+            Subscription.status.in_(("active", "trial")),
+            SubscriptionPlan.price_amount > 0,
+            (Subscription.expires_at.is_(None)) | (Subscription.expires_at >= cutoff),
+        )
+        .order_by(Subscription.expires_at.desc().nullslast(), Subscription.created_at.desc())
+        .limit(1)
+    )
+    subscription = visible_subscription
+    if subscription is None:
+        subscription = await db.scalar(
+            select(Subscription)
+            .join(SubscriptionPlan, Subscription.plan_id == SubscriptionPlan.id)
+            .where(
+                Subscription.seller_id == profile.id,
+                SubscriptionPlan.price_amount > 0,
+            )
+            .order_by(Subscription.expires_at.desc().nullslast(), Subscription.created_at.desc())
+            .limit(1)
+        )
+
+    placement = await db.scalar(
+        select(OneTimePlacement)
+        .where(
+            OneTimePlacement.product_id == product.id,
+            OneTimePlacement.status == "active",
+        )
+        .order_by(OneTimePlacement.paid_at.desc())
+        .limit(1)
+    )
+
+    published_rank = None
+    if product.status == "published":
+        published_rank = await db.scalar(
+            select(func.count(Product.id)).where(
+                Product.seller_id == profile.id,
+                Product.status == "published",
+                or_(
+                    Product.created_at < product.created_at,
+                    (Product.created_at == product.created_at) & (Product.id <= product.id),
+                ),
+            )
+        )
+        published_rank = published_rank or 0
+
+    has_paid_subscription_visibility = visible_subscription is not None
+    has_active_placement = placement is not None
+    reasons: list[str] = []
+    if product.status != "published":
+        reasons.append("not_published")
+    else:
+        if visible_subscription is not None:
+            reasons.append(subscription_visibility_reason(visible_subscription, now))
+        if has_active_placement:
+            reasons.append("one_time_placement")
+        if published_rank is not None and published_rank <= FREE_VISIBLE_PRODUCT_LIMIT:
+            reasons.append("free_tier")
+        if not reasons:
+            reasons.append("hidden_after_grace")
+
+    return {
+        "product_id": product.id,
+        "is_visible": product.status == "published" and reasons[0] not in {"not_published", "hidden_after_grace"},
+        "primary_reason": reasons[0],
+        "reasons": reasons,
+        "product_status": product.status,
+        "published_rank": published_rank,
+        "free_tier_limit": FREE_VISIBLE_PRODUCT_LIMIT,
+        "has_paid_subscription_visibility": has_paid_subscription_visibility,
+        "subscription_status": subscription.status if subscription else None,
+        "subscription_expires_at": subscription.expires_at if subscription else None,
+        "subscription_grace_until": subscription_grace_until(subscription.expires_at) if subscription else None,
+        "has_active_placement": has_active_placement,
+        "active_placement_id": placement.id if placement else None,
+    }
 
 
 async def buy_one_time_placement(db: AsyncSession, user: User, product_id: UUID) -> OneTimePlacement:

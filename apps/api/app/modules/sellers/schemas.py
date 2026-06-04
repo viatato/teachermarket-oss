@@ -64,6 +64,22 @@ class SellerProductResponse(BaseModel):
     published_at: datetime | None = None
 
 
+class SellerProductVisibilityResponse(BaseModel):
+    product_id: UUID
+    is_visible: bool
+    primary_reason: str
+    reasons: list[str]
+    product_status: str
+    published_rank: int | None = None
+    free_tier_limit: int
+    has_paid_subscription_visibility: bool
+    subscription_status: str | None = None
+    subscription_expires_at: datetime | None = None
+    subscription_grace_until: datetime | None = None
+    has_active_placement: bool
+    active_placement_id: UUID | None = None
+
+
 class SellerContactRequestResponse(BaseModel):
     id: UUID
     product_id: UUID
