@@ -42,6 +42,8 @@ def is_product_visible_by_policy(
 
 
 async def cleanup_catalog_subscriptions(db: AsyncSession) -> None:
+    if not get_settings().feature_subscriptions_enabled:
+        return
     expired_count = await expire_stale_subscriptions(db)
     if expired_count:
         await db.commit()
@@ -94,11 +96,13 @@ def free_tier_visibility_condition():
 
 
 def visible_product_condition(now: datetime):
-    return or_(
-        paid_subscription_visibility_condition(now),
-        active_placement_visibility_condition(),
-        free_tier_visibility_condition(),
-    )
+    settings = get_settings()
+    conditions = [free_tier_visibility_condition()]
+    if settings.feature_subscriptions_enabled:
+        conditions.append(paid_subscription_visibility_condition(now))
+    if settings.feature_placements_enabled:
+        conditions.append(active_placement_visibility_condition())
+    return or_(*conditions)
 
 
 async def load_product_with_previews(db: AsyncSession, product_id: UUID) -> Product:
@@ -123,6 +127,9 @@ async def require_seller_profile(db: AsyncSession, user: User) -> SellerProfile:
 
 
 async def get_active_product_limit(db: AsyncSession, seller: SellerProfile) -> int:
+    settings = get_settings()
+    if not settings.feature_subscriptions_enabled:
+        return settings.default_free_product_limit
     now = datetime.now(UTC)
     result = await db.execute(
         select(SubscriptionPlan.product_limit)

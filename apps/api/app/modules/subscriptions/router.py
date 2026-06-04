@@ -13,6 +13,7 @@ from app.modules.subscriptions.schemas import (
 )
 from app.modules.subscriptions.service import (
     create_subscription_checkout,
+    ensure_subscriptions_enabled,
     list_active_plans,
     mark_mock_payment_paid,
     process_payment_webhook,
@@ -20,7 +21,7 @@ from app.modules.subscriptions.service import (
 from app.security.rate_limit import rate_limit
 
 
-router = APIRouter(tags=["subscriptions"])
+router = APIRouter(tags=["subscriptions"], dependencies=[Depends(ensure_subscriptions_enabled)])
 
 
 def plan_response(plan: SubscriptionPlan) -> SubscriptionPlanResponse:

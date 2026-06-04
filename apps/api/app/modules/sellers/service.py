@@ -27,6 +27,11 @@ from app.modules.sellers.schemas import SellerProfileCreate, SellerProfileUpdate
 ONE_TIME_PLACEMENT_AMOUNT = 4000
 
 
+def ensure_placements_enabled() -> None:
+    if not get_settings().feature_placements_enabled:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Функцію не знайдено.")
+
+
 def telegram_contact_url(username: str | None) -> str | None:
     if not username:
         return None
@@ -125,6 +130,7 @@ def subscription_visibility_reason(subscription: Subscription, now: datetime) ->
 
 
 async def get_seller_product_visibility(db: AsyncSession, user: User, product_id: UUID) -> dict:
+    settings = get_settings()
     profile = await require_seller_profile(db, user)
     product = await db.scalar(select(Product).where(Product.id == product_id, Product.seller_id == profile.id))
     if product is None:
@@ -137,40 +143,45 @@ async def get_seller_product_visibility(db: AsyncSession, user: User, product_id
     now = datetime.now(UTC)
     cutoff = subscription_visibility_cutoff(now)
 
-    visible_subscription = await db.scalar(
-        select(Subscription)
-        .join(SubscriptionPlan, Subscription.plan_id == SubscriptionPlan.id)
-        .where(
-            Subscription.seller_id == profile.id,
-            Subscription.status.in_(("active", "trial")),
-            SubscriptionPlan.price_amount > 0,
-            (Subscription.expires_at.is_(None)) | (Subscription.expires_at >= cutoff),
-        )
-        .order_by(Subscription.expires_at.desc().nullslast(), Subscription.created_at.desc())
-        .limit(1)
-    )
-    subscription = visible_subscription
-    if subscription is None:
-        subscription = await db.scalar(
+    visible_subscription = None
+    subscription = None
+    if settings.feature_subscriptions_enabled:
+        visible_subscription = await db.scalar(
             select(Subscription)
             .join(SubscriptionPlan, Subscription.plan_id == SubscriptionPlan.id)
             .where(
                 Subscription.seller_id == profile.id,
+                Subscription.status.in_(("active", "trial")),
                 SubscriptionPlan.price_amount > 0,
+                (Subscription.expires_at.is_(None)) | (Subscription.expires_at >= cutoff),
             )
             .order_by(Subscription.expires_at.desc().nullslast(), Subscription.created_at.desc())
             .limit(1)
         )
+        subscription = visible_subscription
+        if subscription is None:
+            subscription = await db.scalar(
+                select(Subscription)
+                .join(SubscriptionPlan, Subscription.plan_id == SubscriptionPlan.id)
+                .where(
+                    Subscription.seller_id == profile.id,
+                    SubscriptionPlan.price_amount > 0,
+                )
+                .order_by(Subscription.expires_at.desc().nullslast(), Subscription.created_at.desc())
+                .limit(1)
+            )
 
-    placement = await db.scalar(
-        select(OneTimePlacement)
-        .where(
-            OneTimePlacement.product_id == product.id,
-            OneTimePlacement.status == "active",
+    placement = None
+    if settings.feature_placements_enabled:
+        placement = await db.scalar(
+            select(OneTimePlacement)
+            .where(
+                OneTimePlacement.product_id == product.id,
+                OneTimePlacement.status == "active",
+            )
+            .order_by(OneTimePlacement.paid_at.desc())
+            .limit(1)
         )
-        .order_by(OneTimePlacement.paid_at.desc())
-        .limit(1)
-    )
 
     published_rank = None
     if product.status == "published":
@@ -219,6 +230,7 @@ async def get_seller_product_visibility(db: AsyncSession, user: User, product_id
 
 
 async def buy_one_time_placement(db: AsyncSession, user: User, product_id: UUID) -> OneTimePlacement:
+    ensure_placements_enabled()
     profile = await require_seller_profile(db, user)
     product = await db.scalar(select(Product).where(Product.id == product_id, Product.seller_id == profile.id))
     if product is None:
@@ -280,6 +292,7 @@ async def list_seller_placements(
     page: int = 1,
     limit: int = 20,
 ) -> tuple[list[OneTimePlacement], int]:
+    ensure_placements_enabled()
     profile = await require_seller_profile(db, user)
     filters = [OneTimePlacement.seller_id == profile.id]
     total = await db.scalar(select(func.count(OneTimePlacement.id)).where(*filters))
@@ -344,6 +357,8 @@ async def get_seller_subscription_state(
     db: AsyncSession,
     user: User,
 ) -> tuple[Subscription | None, int, int]:
+    if not get_settings().feature_subscriptions_enabled:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Функцію не знайдено.")
     profile = await require_seller_profile(db, user)
     product_count = await db.scalar(
         select(func.count(Product.id)).where(
@@ -374,6 +389,7 @@ async def get_seller_subscription_state(
 
 
 async def get_seller_stats(db: AsyncSession, user: User) -> dict:
+    settings = get_settings()
     profile = await require_seller_profile(db, user)
     status_rows = await db.execute(
         select(Product.status, func.count(Product.id))
@@ -387,8 +403,11 @@ async def get_seller_stats(db: AsyncSession, user: User) -> dict:
         select(func.count(ContactRequest.id)).where(ContactRequest.seller_id == profile.id, ContactRequest.status == "new")
     )
     product_ids = select(Product.id).where(Product.seller_id == profile.id)
-    reviews_total = await db.scalar(select(func.count(Review.id)).where(Review.product_id.in_(product_ids)))
-    average_rating = await db.scalar(select(func.avg(Review.rating)).where(Review.product_id.in_(product_ids)))
+    reviews_total = 0
+    average_rating = None
+    if settings.feature_reviews_enabled:
+        reviews_total = await db.scalar(select(func.count(Review.id)).where(Review.product_id.in_(product_ids)))
+        average_rating = await db.scalar(select(func.avg(Review.rating)).where(Review.product_id.in_(product_ids)))
     views_total = await db.scalar(select(func.count(ProductViewEvent.id)).where(ProductViewEvent.product_id.in_(product_ids)))
     views_7d = await db.scalar(
         select(func.count(ProductViewEvent.id)).where(

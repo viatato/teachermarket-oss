@@ -1,15 +1,21 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 
+from app.config import get_settings
 from app.dependencies import DatabaseSession, get_current_user
 from app.db.models import Review, User
 from app.modules.reviews.schemas import ProductReviewsResponse, ReviewCreate, ReviewResponse, ReviewUpdate
 from app.modules.reviews.service import create_review, delete_review, list_product_reviews, update_review
 
 
-router = APIRouter(tags=["reviews"])
+def require_reviews_enabled() -> None:
+    if not get_settings().feature_reviews_enabled:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Функцію не знайдено.")
+
+
+router = APIRouter(tags=["reviews"], dependencies=[Depends(require_reviews_enabled)])
 
 
 def buyer_display_name(review: Review) -> str | None:

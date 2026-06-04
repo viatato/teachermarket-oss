@@ -17,6 +17,11 @@ from app.services.payments.registry import get_payment_provider
 SUBSCRIPTION_VISIBILITY_GRACE_PERIOD = timedelta(days=7)
 
 
+def ensure_subscriptions_enabled() -> None:
+    if not get_settings().feature_subscriptions_enabled:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Функцію не знайдено.")
+
+
 def subscription_visibility_cutoff(now: datetime) -> datetime:
     return now - SUBSCRIPTION_VISIBILITY_GRACE_PERIOD
 
@@ -30,6 +35,7 @@ def subscription_should_expire_at(expires_at: datetime | None, now: datetime) ->
 
 
 async def list_active_plans(db: AsyncSession) -> list[SubscriptionPlan]:
+    ensure_subscriptions_enabled()
     result = await db.scalars(
         select(SubscriptionPlan)
         .where(SubscriptionPlan.is_active.is_(True))
@@ -39,6 +45,7 @@ async def list_active_plans(db: AsyncSession) -> list[SubscriptionPlan]:
 
 
 async def get_active_paid_subscription(db: AsyncSession, seller: SellerProfile) -> Subscription | None:
+    ensure_subscriptions_enabled()
     now = datetime.now(UTC)
     return await db.scalar(
         select(Subscription)
@@ -61,6 +68,7 @@ async def create_subscription_checkout(
     user: User,
     payload: SubscriptionCheckoutCreate,
 ) -> SubscriptionPayment:
+    ensure_subscriptions_enabled()
     seller = await require_seller_profile(db, user)
     plan = await db.scalar(
         select(SubscriptionPlan).where(
@@ -118,6 +126,7 @@ async def load_payment(db: AsyncSession, payment_id: UUID) -> SubscriptionPaymen
 
 
 async def mark_mock_payment_paid(db: AsyncSession, *, payment_id: UUID, actor: User) -> SubscriptionPayment:
+    ensure_subscriptions_enabled()
     payment = await load_payment(db, payment_id)
     if payment.provider != "mock":
         raise HTTPException(
@@ -159,6 +168,7 @@ async def process_payment_webhook(
     raw_body: bytes,
     headers: dict[str, str],
 ) -> tuple[SubscriptionPayment, dict | None]:
+    ensure_subscriptions_enabled()
     settings = get_settings()
     provider = get_payment_provider(provider_code)
     provider.verify_webhook(raw_body=raw_body, headers=headers, settings=settings)

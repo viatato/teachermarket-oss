@@ -24,6 +24,7 @@ from app.modules.sellers.schemas import (
 from app.modules.sellers.service import (
     buy_one_time_placement,
     create_seller_profile,
+    ensure_placements_enabled,
     get_seller_profile,
     get_seller_product_visibility,
     get_seller_stats,
@@ -34,6 +35,7 @@ from app.modules.sellers.service import (
     update_seller_contact_request,
     update_seller_profile,
 )
+from app.modules.subscriptions.service import ensure_subscriptions_enabled
 
 
 router = APIRouter(prefix="/seller", tags=["seller"])
@@ -200,7 +202,11 @@ async def read_seller_product_visibility(
     )
 
 
-@router.post("/products/{product_id}/buy-placement", response_model=SellerPlacementPurchaseResponse)
+@router.post(
+    "/products/{product_id}/buy-placement",
+    response_model=SellerPlacementPurchaseResponse,
+    dependencies=[Depends(ensure_placements_enabled)],
+)
 async def buy_product_placement(
     product_id: UUID,
     db: DatabaseSession,
@@ -215,7 +221,7 @@ async def buy_product_placement(
     )
 
 
-@router.get("/placements", response_model=SellerPlacementsResponse)
+@router.get("/placements", response_model=SellerPlacementsResponse, dependencies=[Depends(ensure_placements_enabled)])
 async def read_seller_placements(
     db: DatabaseSession,
     current_user: Annotated[User, Depends(get_current_user)],
@@ -251,7 +257,7 @@ async def patch_seller_contact_request(
     return seller_contact_request_response(contact_request)
 
 
-@router.get("/subscription", response_model=SellerSubscriptionResponse)
+@router.get("/subscription", response_model=SellerSubscriptionResponse, dependencies=[Depends(ensure_subscriptions_enabled)])
 async def read_seller_subscription(
     db: DatabaseSession,
     current_user: Annotated[User, Depends(get_current_user)],
