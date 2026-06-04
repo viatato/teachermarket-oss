@@ -31,3 +31,7 @@ class SellerProfile(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     subscriptions: Mapped[list["Subscription"]] = relationship(back_populates="seller")
     subscription_payments: Mapped[list["SubscriptionPayment"]] = relationship(back_populates="seller")
     contact_requests: Mapped[list["ContactRequest"]] = relationship(back_populates="seller")
+    one_time_placements: Mapped[list["OneTimePlacement"]] = relationship(
+        back_populates="seller",
+        cascade="all, delete-orphan",
+    )

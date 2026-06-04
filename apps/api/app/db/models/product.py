@@ -54,3 +54,7 @@ class Product(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     view_events: Mapped[list["ProductViewEvent"]] = relationship(back_populates="product", cascade="all, delete-orphan")
     favorites: Mapped[list["Favorite"]] = relationship(back_populates="product", cascade="all, delete-orphan")
     contact_requests: Mapped[list["ContactRequest"]] = relationship(back_populates="product")
+    one_time_placements: Mapped[list["OneTimePlacement"]] = relationship(
+        back_populates="product",
+        cascade="all, delete-orphan",
+    )
