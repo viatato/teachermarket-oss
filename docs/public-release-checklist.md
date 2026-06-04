@@ -68,7 +68,12 @@ Do not run this flow until the copied tree has been reviewed. If any real secret
 
 ## Community And Application Readiness
 
-- [ ] Public-safe community validation is summarized in `docs/community-validation.md`.
+- [ ] Public-safe community validation is summarized in `docs/community-validation.md` with aggregate counts from the product-interest poll, problems/pain-points poll, and cloud beta tester list.
+- [ ] Raw poll exports, private tester contacts, Telegram handles, phone numbers, and private support notes are kept outside the public repository.
+- [ ] Repeated beta feedback has been converted into public GitHub issues labeled `community-feedback` where safe.
 - [ ] Starter issues are ready and do not contain private context.
 - [ ] `docs/openai_oss_application.md` is current and honest about beta status.
+- [ ] OpenAI application form drafts have been reviewed against the current form fields.
+- [ ] GitHub profile and repository visibility are public before submission.
+- [ ] OpenAI Organization ID is prepared.
 - [ ] Release notes contain no private production details.

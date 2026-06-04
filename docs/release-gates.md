@@ -63,12 +63,15 @@ These checks must be complete before tagging `v0.1.0-beta`.
 ## Community
 
 - [ ] Teacher poll run.
+- [ ] Problems/pain-points poll summarized.
 - [ ] Beta tester interest collected.
+- [ ] Cloud beta tester count documented as an aggregate.
 - [ ] Seller interest collected.
 - [ ] Buyer/user interest collected.
 - [ ] Teacher community size documented honestly.
 - [ ] Feedback themes summarized in `docs/community-validation.md`.
 - [ ] Public issues created from non-private feedback.
+- [ ] Raw poll exports and tester identities kept outside the public repository.
 
 ## OpenAI Codex For OSS Application
 
@@ -79,6 +82,9 @@ These checks must be complete before tagging `v0.1.0-beta`.
 - [ ] Maintainer role is clear.
 - [ ] Codex use cases are specific: review, triage, tests, security, migrations, docs, releases.
 - [ ] Community proof points are linked or summarized.
+- [ ] GitHub profile and repository visibility are public before submission.
+- [ ] OpenAI Organization ID is prepared.
+- [ ] Form answers fit the current character limits.
 
 ## Local Agent Guardrails
 

@@ -16,11 +16,16 @@ TeacherMarket aims to become reusable open-source infrastructure for those commu
 
 ## Current Status
 
+- Hosted beta has started.
 - Early beta-ready product core.
 - FastAPI API, aiogram bot, React/Vite Telegram Mini App, PostgreSQL, Alembic.
 - Local/self-host setup documented.
 - AGPL-3.0-only license selected.
-- Community validation is in progress and must be documented before application.
+- Existing Telegram teacher community has 1,461 members.
+- TeacherMarket product-interest poll has 11 responses.
+- Broader teacher problems-and-pain-points poll has 33 responses.
+- Hosted TeacherMarket Cloud beta has 8 testers; keep their private contacts outside public docs.
+- Community validation is summarized as public-safe aggregate counts in `docs/community-validation.md`.
 - Public release gates are tracked in `docs/release-gates.md`.
 
 ## Maintainer Role
@@ -44,13 +49,14 @@ Codex can help with real maintainer workload:
 
 | Proof point | Status | Notes |
 |---|---|---|
-| Teacher community size | TBD | Document honestly in `docs/community-validation.md`. |
-| Poll results | TBD | Include anonymized counts/screenshots if safe. |
-| Seller interest | TBD | Count teachers interested in publishing materials. |
-| Buyer/user interest | TBD | Count teachers interested in finding materials. |
-| Beta testers | TBD | Keep private contacts out of public docs. |
-| First sample materials | TBD | Use demo or consented public materials only. |
-| Public feedback issues | TBD | Link GitHub issues labeled `community-feedback`. |
+| Teacher community size | 1,461 members | Public-safe Telegram community screenshot. |
+| TeacherMarket product-interest poll results | 11 responses summarized | Use `ТічерМаркет — опитування для викладачів`; keep screenshots public-safe. |
+| Problems/pain-points poll results | 33 responses summarized | Use `Кастдев Тічери`; summarize themes, not private respondent text. |
+| Seller/author interest | 5 would publish; 6 want author beta | TeacherMarket poll questions 2 and 6. |
+| Buyer/user interest | 3 would search; 2 want catalog-user beta | TeacherMarket poll questions 2 and 6. |
+| Beta testers | 8 cloud beta testers | Keep private contacts out of public docs. |
+| First sample materials | Optional before application | Use demo or consented public materials only. |
+| Public feedback issues | 4 feedback issues created | #4 tariff changes, #5 one-time author upload fee option, #6 automoderation, #7 material complaint handling. |
 | CI and tests | In progress | CI added; GitHub run still pending after push. |
 
 ## Suggested Application Text
@@ -62,6 +68,37 @@ The project is being developed around an existing teacher ecosystem and early be
 
 Codex would help me maintain the project by reviewing pull requests, triaging issues from beta users, improving security around file uploads and subscription payments, writing tests, maintaining migrations, improving documentation, and preparing releases.
 ```
+
+## Form Field Drafts
+
+Use these compact answers for the current OpenAI Codex for Open Source form.
+
+### Why does this repository qualify?
+
+```text
+TeacherMarket is a self-hostable Telegram-first catalog engine for teacher communities. It addresses validated problems from an existing teacher audience: materials are shared through chats, folders, and DMs without catalog, moderation, author profiles, or reusable infrastructure. The OSS core is in early beta with real teacher testers and public maintainer work around docs, QA, security, and releases.
+```
+
+### How will you use API credits?
+
+```text
+I will use API credits for core OSS maintenance: PR review, issue triage from teacher beta feedback, test generation for FastAPI/bot/webapp flows, release checklist automation, documentation updates, and security review around Telegram auth, uploads, storage, moderation, and payment webhooks.
+```
+
+### Anything else we should know?
+
+```text
+TeacherMarket is intentionally scoped: OSS v1 focuses on catalog, author profiles, contact requests, moderation, file uploads, and subscriptions. Direct material checkout, protected downloads, seller payouts, and commission accounting are future v2 work, so the public repository stays honest and reusable for self-hosted education communities.
+```
+
+## Application Readiness Actions
+
+- Fill `docs/community-validation.md` with aggregate counts from both polls and the cloud beta tester list.
+- Use the `Кастдев Тічери` form for general teacher pain points and the `ТічерМаркет — опитування для викладачів` form for product-specific demand.
+- Repeated beta feedback has been converted into public GitHub issues labeled `community-feedback`.
+- Make sure `viatato/teachermarket` and the maintainer GitHub profile are public before submitting.
+- Confirm starter issues, release gates, CI status, and security docs are visible in the public repository.
+- Prepare the OpenAI Organization ID before opening the form.
 
 ## Wording To Avoid
 

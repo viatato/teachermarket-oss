@@ -89,3 +89,15 @@ Use these as the first public backlog. Suggested labels are included so maintain
 
 20. **Prepare v0.1.0-beta release checklist issue**
     Labels: `mvp`, `documentation`, `codex-friendly`
+
+21. **Add optional automoderation assist for submitted materials**
+    Labels: `community-feedback`, `moderation`, `security`, `codex-friendly`
+
+22. **Explore one-time author upload fee option for self-hosters**
+    Labels: `community-feedback`, `payments`, `self-hosting`, `help wanted`
+
+23. **Allow authors to change subscription plans safely**
+    Labels: `community-feedback`, `payments`, `backend`, `frontend`
+
+24. **Improve material complaint/report handling and policy docs**
+    Labels: `community-feedback`, `moderation`, `frontend`, `documentation`
