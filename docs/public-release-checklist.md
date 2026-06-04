@@ -1,6 +1,6 @@
 # Public Release Checklist
 
-Use this checklist before making `viatato/teachermarket` public, tagging a release, or applying to OpenAI OSS programs. Do not make the repository public automatically from local scripts or CI.
+Use this checklist before making `viatato/teachermarket-oss` public, tagging a release, or applying to OpenAI OSS programs. Do not make the repository public automatically from local scripts or CI.
 
 ## Repository Safety
 
@@ -15,7 +15,7 @@ Use this checklist before making `viatato/teachermarket` public, tagging a relea
 
 Use a clean mirror when the private repository history contains production deployment details, commercial operations, secrets, customer data, or private runbooks. This keeps the public project focused on the reusable OSS core without rewriting the private repository history in place.
 
-1. Create a fresh empty repository for the public mirror, for example `viatato/teachermarket`.
+1. Create a fresh empty repository for the public mirror, for example `viatato/teachermarket-oss`.
 2. Export or copy only the intended OSS working tree into a temporary directory. Exclude `.git`, `.env`, private deployment folders, backups, logs, dumps, customer data, and local storage.
 3. Review the copied tree with the safety checklist above.
 4. Initialize a new git history in the temporary directory.

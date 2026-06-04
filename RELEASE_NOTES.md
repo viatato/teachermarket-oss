@@ -47,8 +47,9 @@ Self-hosters should review:
 
 - Telegram Mini App requires HTTPS for real auth (`initData` validation)
 - Production deployments must configure secure secrets, CORS, storage, backups, and payment webhooks
-- Community validation is still in progress
-- Manual Telegram tap-test must be completed by the owner before the repo is made public
+- Hosted beta has started with first testers
+- Community validation is summarized in `docs/community-validation.md`
+- Manual Telegram-client smoke should continue during beta before wider rollout
 
 ## License
 

@@ -9,7 +9,7 @@ These checks must be complete before tagging `v0.1.0-beta`.
 - [ ] `cd apps/bot && python -m compileall bot`
 - [ ] `cd apps/webapp && npm run build`
 - [ ] `git diff --check`
-- [ ] GitHub Actions CI green
+- [x] GitHub Actions CI green
 
 ## Public Repository Safety
 
@@ -49,7 +49,7 @@ These checks must be complete before tagging `v0.1.0-beta`.
 
 ## GitHub Readiness
 
-- [ ] Repository is public.
+- [x] Repository is public.
 - [ ] Repository description and topics/tags are set.
 - [ ] Issue templates render correctly.
 - [ ] Pull request template renders correctly.
@@ -62,29 +62,29 @@ These checks must be complete before tagging `v0.1.0-beta`.
 
 ## Community
 
-- [ ] Teacher poll run.
-- [ ] Problems/pain-points poll summarized.
-- [ ] Beta tester interest collected.
-- [ ] Cloud beta tester count documented as an aggregate.
-- [ ] Seller interest collected.
-- [ ] Buyer/user interest collected.
-- [ ] Teacher community size documented honestly.
-- [ ] Feedback themes summarized in `docs/community-validation.md`.
-- [ ] Public issues created from non-private feedback.
-- [ ] Raw poll exports and tester identities kept outside the public repository.
+- [x] Teacher poll run.
+- [x] Problems/pain-points poll summarized.
+- [x] Beta tester interest collected.
+- [x] Cloud beta tester count documented as an aggregate.
+- [x] Seller interest collected.
+- [x] Buyer/user interest collected.
+- [x] Teacher community size documented honestly.
+- [x] Feedback themes summarized in `docs/community-validation.md`.
+- [x] Public issues created from non-private feedback.
+- [x] Raw poll exports and tester identities kept outside the public repository.
 
 ## OpenAI Codex For OSS Application
 
-- [ ] `docs/openai_oss_application.md` updated with current facts.
-- [ ] `docs/openai-application-notes.md` updated with current facts.
-- [ ] Application text says the project is early/beta if still in beta.
-- [ ] Application text does not overclaim adoption.
-- [ ] Maintainer role is clear.
-- [ ] Codex use cases are specific: review, triage, tests, security, migrations, docs, releases.
-- [ ] Community proof points are linked or summarized.
-- [ ] GitHub profile and repository visibility are public before submission.
+- [x] `docs/openai_oss_application.md` updated with current facts.
+- [x] `docs/openai-application-notes.md` updated with current facts.
+- [x] Application text says the project is early/beta if still in beta.
+- [x] Application text does not overclaim adoption.
+- [x] Maintainer role is clear.
+- [x] Codex use cases are specific: review, triage, tests, security, migrations, docs, releases.
+- [x] Community proof points are linked or summarized.
+- [x] GitHub profile and repository visibility are public before submission.
 - [ ] OpenAI Organization ID is prepared.
-- [ ] Form answers fit the current character limits.
+- [x] Form answers fit the current character limits.
 
 ## Local Agent Guardrails
 
