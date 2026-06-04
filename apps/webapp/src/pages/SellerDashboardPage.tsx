@@ -102,6 +102,66 @@ const serviceRules = [
   "Підписка автора оплачує розміщення й роботу з сервісом, а не продаж конкретного матеріалу.",
 ];
 
+function getStatusCount(data: SellerDashboardData, status: string) {
+  return data.stats?.products_by_status?.[status] ?? data.products.filter((product) => product.status === status).length;
+}
+
+function getPublishedCount(data: SellerDashboardData) {
+  return getStatusCount(data, "published");
+}
+
+function getNotReadyCount(data: SellerDashboardData) {
+  return Math.max(data.products.length - getPublishedCount(data), 0);
+}
+
+function getSellerRecommendations(data: SellerDashboardData) {
+  const recommendations: string[] = [];
+  const publishedCount = getPublishedCount(data);
+  const notReadyCount = getNotReadyCount(data);
+  const contactsNew = data.stats?.contacts_new ?? data.contactRequests.filter((request) => request.status === "new").length;
+  const views7d = data.stats?.views_7d ?? 0;
+  const reviewsTotal = data.stats?.reviews_total ?? 0;
+  const limitRemaining = Math.max(data.subscription.product_limit - data.subscription.product_count, 0);
+
+  if (contactsNew > 0) {
+    recommendations.push("Відповідайте на нові звернення швидко: це найкоротший шлях до продажу напряму.");
+  }
+  if (notReadyCount > 0) {
+    recommendations.push("Завершіть чернетки або правки, щоб більше матеріалів потрапили в каталог.");
+  }
+  if (publishedCount > 0 && views7d === 0) {
+    recommendations.push("Оновіть назву, превʼю або опис опублікованих матеріалів, щоб їх легше помічали.");
+  }
+  if (limitRemaining <= 1 && data.subscription.can_add_product) {
+    recommendations.push("Ліміт майже заповнений: оберіть найсильніші матеріали або перегляньте підписку.");
+  }
+  if (publishedCount > 0 && reviewsTotal === 0) {
+    recommendations.push("Після контакту з покупцем попросіть короткий відгук до матеріалу.");
+  }
+
+  if (recommendations.length === 0) {
+    recommendations.push("Підтримуйте актуальні превʼю й відповідайте на звернення того ж дня.");
+  }
+
+  return recommendations.slice(0, 2);
+}
+
+function getProductManagementHint(product: SellerProduct) {
+  if (product.status === "draft") {
+    return "Чернетка не видима покупцям: доповніть матеріал у bot і надішліть на модерацію.";
+  }
+  if (product.status === "pending_moderation") {
+    return "Матеріал чекає модерації; після схвалення перевірте блок видимості.";
+  }
+  if (product.status === "rejected") {
+    return "Внесіть правки з коментаря і повторно відправте матеріал на модерацію.";
+  }
+  if (product.status === "hidden") {
+    return "Прихований матеріал не показується в каталозі; перевірте причину або оновіть матеріал.";
+  }
+  return "Перевірте статус матеріалу перед наступною дією.";
+}
+
 function formatDate(value: string) {
   return new Date(value).toLocaleDateString("uk-UA");
 }
@@ -251,7 +311,7 @@ function SellerHome({
   isAdmin: boolean;
   onNavigate: (screen: "profile" | SellerScreen) => void;
 }) {
-  const publishedCount = data.products.filter((product) => product.status === "published").length;
+  const publishedCount = getStatusCount(data, "published");
   const stats = data.stats;
   return (
     <>
@@ -289,6 +349,8 @@ function SellerHome({
         <StatTile label="Рейтинг" value={stats?.average_rating ? stats.average_rating.toFixed(1) : "—"} />
       </section>
 
+      <SellerInsights data={data} />
+
       <section className="seller-menu" aria-label="Розділи профілю автора">
         <SellerMenuButton
           icon={<LayoutGrid aria-hidden="true" size={22} />}
@@ -318,6 +380,62 @@ function SellerHome({
         ) : null}
       </section>
     </>
+  );
+}
+
+function SellerInsights({ data }: { data: SellerDashboardData }) {
+  const publishedCount = getPublishedCount(data);
+  const notReadyCount = getNotReadyCount(data);
+  const contactsNew = data.stats?.contacts_new ?? data.contactRequests.filter((request) => request.status === "new").length;
+  const reviewsTotal = data.stats?.reviews_total ?? 0;
+  const averageRating = data.stats?.average_rating;
+  const views7d = data.stats?.views_7d ?? 0;
+  const limit = data.subscription.product_limit;
+  const limitUsed = data.subscription.product_count;
+  const recommendations = getSellerRecommendations(data);
+
+  return (
+    <section className="dashboard-panel seller-insights" aria-label="Аналітика і видимість">
+      <div className="seller-insights-header">
+        <div>
+          <p className="eyebrow">Аналітика</p>
+          <h2>Видимість і наступні кроки</h2>
+        </div>
+        <span className={`insight-limit-badge ${data.subscription.can_add_product ? "" : "insight-limit-badge-full"}`}>
+          {data.subscription.can_add_product ? "Можна додавати" : "Ліміт заповнено"}
+        </span>
+      </div>
+
+      <div className="insight-grid">
+        <InsightMetric label="Опубліковані" value={publishedCount} detail="видимість дивіться в картках" />
+        <InsightMetric label="Не готові" value={notReadyCount} detail="чернетки, правки або приховані" />
+        <InsightMetric label="Перегляди 7 днів" value={views7d} detail="без переглядів автора" />
+        <InsightMetric label="Нові звернення" value={contactsNew} detail="чекають відповіді" />
+        <InsightMetric label="Відгуки" value={reviewsTotal} detail={averageRating ? `рейтинг ${averageRating.toFixed(1)} / 5` : "рейтингу ще немає"} />
+      </div>
+
+      <div className="insight-usage">
+        <span>Ліміт матеріалів</span>
+        <strong>{limitUsed} / {limit}</strong>
+        <progress max={Math.max(limit, 1)} value={Math.min(limitUsed, limit)} />
+      </div>
+
+      <div className="insight-recommendations">
+        {recommendations.map((recommendation) => (
+          <p key={recommendation}>{recommendation}</p>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function InsightMetric({ label, value, detail }: { label: string; value: string | number; detail: string }) {
+  return (
+    <div className="insight-metric">
+      <span>{label}</span>
+      <strong>{value}</strong>
+      <small>{detail}</small>
+    </div>
   );
 }
 
@@ -896,6 +1014,7 @@ function SellerProducts({
                 <span className={`status-pill status-${product.status}`}>{statusLabels[product.status] ?? product.status}</span>
                 <strong>{formatPrice(product.price_amount, product.currency)}</strong>
               </div>
+              {product.status !== "published" ? <p className="product-visibility-hint">{getProductManagementHint(product)}</p> : null}
               <SellerProductVisibilityBlock product={product} accessToken={accessToken} />
               <div className="product-action-row" aria-label={`Керування матеріалом ${product.title}`}>
                 {["draft", "rejected"].includes(product.status) ? (
