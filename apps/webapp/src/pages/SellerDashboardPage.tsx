@@ -35,10 +35,12 @@ import {
   type AdminSubscriptionPlan,
 } from "../api/admin";
 import {
+  buySellerProductPlacement,
   createSubscriptionCheckout,
   demoSellerDashboard,
   demoSubscriptionPlans,
   fetchSellerDashboard,
+  fetchSellerProductVisibility,
   fetchSellerProfile,
   fetchSubscriptionPlans,
   deleteSellerProduct,
@@ -84,12 +86,25 @@ const statusLabels: Record<string, string> = {
   trial: "Пробний період",
 };
 
+const visibilityLabels: Record<string, { label: string; tone: "visible" | "hidden" }> = {
+  paid_subscription: { label: "Видно за підпискою", tone: "visible" },
+  subscription_grace: { label: "Видно в грейс-період", tone: "visible" },
+  one_time_placement: { label: "Видно за разовим розміщенням", tone: "visible" },
+  free_tier: { label: "Видно у free-ліміті", tone: "visible" },
+  not_published: { label: "Не видно: не опубліковано", tone: "hidden" },
+  hidden_after_grace: { label: "Не видно після грейс-періоду", tone: "hidden" },
+};
+
 const serviceRules = [
   "Розміщуйте тільки власні матеріали або матеріали, на які маєте права.",
   "Превʼю має чесно показувати зміст матеріалу.",
   "Покупець пише автору напряму в Telegram; ТічерМаркет не проводить оплату матеріалу і не робить виплати авторам.",
   "Підписка автора оплачує розміщення й роботу з сервісом, а не продаж конкретного матеріалу.",
 ];
+
+function formatDate(value: string) {
+  return new Date(value).toLocaleDateString("uk-UA");
+}
 
 export function SellerDashboardPage({
   accessToken,
@@ -881,6 +896,7 @@ function SellerProducts({
                 <span className={`status-pill status-${product.status}`}>{statusLabels[product.status] ?? product.status}</span>
                 <strong>{formatPrice(product.price_amount, product.currency)}</strong>
               </div>
+              <SellerProductVisibilityBlock product={product} accessToken={accessToken} />
               <div className="product-action-row" aria-label={`Керування матеріалом ${product.title}`}>
                 {["draft", "rejected"].includes(product.status) ? (
                   <button type="button" className="secondary" onClick={() => setEditingProduct(product)}>
@@ -934,6 +950,113 @@ function SellerProducts({
         ) : null}
       </section>
     </>
+  );
+}
+
+function SellerProductVisibilityBlock({
+  product,
+  accessToken,
+}: {
+  product: SellerProduct;
+  accessToken?: string | null;
+}) {
+  const queryClient = useQueryClient();
+  const [placementNotice, setPlacementNotice] = useState<string | null>(null);
+  const visibilityQuery = useQuery({
+    queryKey: ["seller-product-visibility", accessToken, product.id],
+    queryFn: () => fetchSellerProductVisibility(product.id, accessToken || ""),
+    enabled: Boolean(accessToken),
+    retry: false,
+  });
+  const placementMutation = useMutation({
+    mutationFn: () => {
+      if (!accessToken) throw new Error("Потрібна авторизація.");
+      return buySellerProductPlacement(product.id, accessToken);
+    },
+    onMutate: () => {
+      setPlacementNotice(null);
+    },
+    onSuccess: async () => {
+      setPlacementNotice("Розміщення активовано.");
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["seller-dashboard", accessToken] }),
+        queryClient.invalidateQueries({ queryKey: ["seller-product-visibility", accessToken, product.id] }),
+      ]);
+      window.setTimeout(() => setPlacementNotice(null), 3500);
+    },
+    onError: () => {
+      setPlacementNotice("Не вдалося оформити розміщення.");
+      window.setTimeout(() => setPlacementNotice(null), 3500);
+    },
+  });
+
+  if (!accessToken) {
+    return (
+      <div className="visibility-block">
+        <span className="visibility-title">Видимість у каталозі</span>
+        <span className="visibility-muted">Доступно після входу через Telegram.</span>
+      </div>
+    );
+  }
+
+  if (visibilityQuery.isLoading) {
+    return (
+      <div className="visibility-block">
+        <span className="visibility-title">Видимість у каталозі</span>
+        <span className="visibility-muted">Перевіряємо...</span>
+      </div>
+    );
+  }
+
+  if (visibilityQuery.isError || !visibilityQuery.data) {
+    return (
+      <div className="visibility-block visibility-block-hidden">
+        <span className="visibility-title">Видимість у каталозі</span>
+        <span className="visibility-muted">Не вдалося завантажити статус.</span>
+      </div>
+    );
+  }
+
+  const visibility = visibilityQuery.data;
+  const fallbackTone: "visible" | "hidden" = visibility.is_visible ? "visible" : "hidden";
+  const meta = visibilityLabels[visibility.primary_reason] ?? {
+    label: visibility.is_visible ? "Видно в каталозі" : "Не видно в каталозі",
+    tone: fallbackTone,
+  };
+  const canBuyPlacement =
+    product.status === "published" &&
+    visibility.primary_reason === "hidden_after_grace" &&
+    !visibility.has_active_placement;
+
+  return (
+    <div className={`visibility-block visibility-block-${meta.tone}`}>
+      <div className="visibility-summary">
+        <span className="visibility-title">{meta.label}</span>
+        {visibility.published_rank != null ? (
+          <span className="visibility-muted">
+            Позиція #{visibility.published_rank} / free-ліміт {visibility.free_tier_limit}
+          </span>
+        ) : null}
+        {visibility.subscription_grace_until ? (
+          <span className="visibility-muted">Грейс до {formatDate(visibility.subscription_grace_until)}</span>
+        ) : null}
+      </div>
+      {canBuyPlacement ? (
+        <button
+          type="button"
+          className="secondary placement-button"
+          disabled={placementMutation.isPending}
+          onClick={() => {
+            if (window.confirm("Розмістити матеріал за 40 грн?")) {
+              placementMutation.mutate();
+            }
+          }}
+        >
+          {placementMutation.isPending ? "Розміщуємо..." : "Розмістити за 40 грн"}
+        </button>
+      ) : null}
+      {placementNotice ? <span className={placementMutation.isError ? "visibility-error" : "visibility-success"}>{placementNotice}</span> : null}
+    </div>
   );
 }
 

@@ -1,9 +1,11 @@
 import type {
   SellerContactRequest,
   SellerDashboardData,
+  SellerPlacementPurchaseResponse,
   SellerProfile,
   SellerProduct,
   SellerProductUpdate,
+  SellerProductVisibility,
   SellerStats,
   SellerSubscription,
   SellerSubscriptionPlan,
@@ -82,7 +84,7 @@ export const demoSubscriptionPlans: SellerSubscriptionPlan[] = [
     code: "pro_monthly",
     name: "Pro щомісяця",
     description: "До 50 матеріалів у каталозі.",
-    price_amount: 29900,
+    price_amount: 20000,
     currency: "UAH",
     duration_days: 30,
     product_limit: 50,
@@ -92,7 +94,7 @@ export const demoSubscriptionPlans: SellerSubscriptionPlan[] = [
     code: "pro_yearly",
     name: "Pro на рік",
     description: "Річний доступ для активних авторів.",
-    price_amount: 299000,
+    price_amount: 200000,
     currency: "UAH",
     duration_days: 365,
     product_limit: 50,
@@ -227,6 +229,33 @@ export async function deleteSellerProduct(productId: string, accessToken: string
   });
   if (!response.ok) {
     throw new Error("Не вдалося видалити матеріал.");
+  }
+  return response.json();
+}
+
+export async function fetchSellerProductVisibility(
+  productId: string,
+  accessToken: string,
+): Promise<SellerProductVisibility> {
+  const response = await fetch(`${API_BASE_URL}/seller/products/${productId}/visibility`, {
+    headers: authHeaders(accessToken),
+  });
+  if (!response.ok) {
+    throw new Error("Не вдалося завантажити видимість матеріалу.");
+  }
+  return response.json();
+}
+
+export async function buySellerProductPlacement(
+  productId: string,
+  accessToken: string,
+): Promise<SellerPlacementPurchaseResponse> {
+  const response = await fetch(`${API_BASE_URL}/seller/products/${productId}/buy-placement`, {
+    method: "POST",
+    headers: authHeaders(accessToken),
+  });
+  if (!response.ok) {
+    throw new Error("Не вдалося оформити разове розміщення.");
   }
   return response.json();
 }
