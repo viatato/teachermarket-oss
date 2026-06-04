@@ -11,6 +11,7 @@ from sqlalchemy.orm import selectinload
 
 from app.db.models import AuditLog, Product, ProductReport, SellerProfile, Subscription, SubscriptionPlan, User
 from app.config import Settings, get_settings
+from app.modules.subscriptions.service import subscription_visibility_cutoff
 
 
 logger = logging.getLogger(__name__)
@@ -237,7 +238,7 @@ async def get_best_active_subscription(db: AsyncSession, seller_id: UUID) -> Sub
         .where(
             Subscription.seller_id == seller_id,
             Subscription.status.in_(("active", "trial")),
-            (Subscription.expires_at.is_(None)) | (Subscription.expires_at > now),
+            (Subscription.expires_at.is_(None)) | (Subscription.expires_at >= subscription_visibility_cutoff(now)),
         )
         .order_by(SubscriptionPlan.product_limit.desc(), Subscription.expires_at.desc().nullslast())
         .limit(1)
@@ -315,7 +316,7 @@ async def expire_stale_and_conflicting_subscriptions(db: AsyncSession, seller_id
                 Subscription.seller_id == seller_id,
                 Subscription.status.in_(("active", "trial")),
                 Subscription.expires_at.is_not(None),
-                Subscription.expires_at <= now,
+                Subscription.expires_at < subscription_visibility_cutoff(now),
             )
         )
     )

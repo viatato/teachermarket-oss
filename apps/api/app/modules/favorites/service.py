@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from uuid import UUID
 
 from fastapi import HTTPException, status
@@ -6,10 +7,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.db.models import Favorite, Product, User
+from app.modules.products.service import cleanup_catalog_subscriptions, visible_product_condition
 
 
 async def get_published_product_or_404(db: AsyncSession, product_id: UUID) -> Product:
-    product = await db.scalar(select(Product).where(Product.id == product_id, Product.status == "published"))
+    await cleanup_catalog_subscriptions(db)
+    product = await db.scalar(
+        select(Product).where(Product.id == product_id, Product.status == "published", visible_product_condition(datetime.now(UTC)))
+    )
     if product is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Матеріал не знайдено.")
     return product
@@ -37,11 +42,12 @@ async def remove_favorite(db: AsyncSession, *, user: User, product_id: UUID) -> 
 
 
 async def list_favorite_products(db: AsyncSession, *, user: User) -> list[Product]:
+    await cleanup_catalog_subscriptions(db)
     result = await db.scalars(
         select(Product)
         .join(Favorite, Favorite.product_id == Product.id)
         .options(selectinload(Product.previews), selectinload(Product.seller))
-        .where(Favorite.user_id == user.id, Product.status == "published")
+        .where(Favorite.user_id == user.id, Product.status == "published", visible_product_condition(datetime.now(UTC)))
         .order_by(Favorite.created_at.desc())
     )
     return list(result)

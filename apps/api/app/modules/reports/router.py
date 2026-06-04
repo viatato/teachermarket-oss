@@ -1,4 +1,5 @@
 from typing import Annotated
+from datetime import UTC, datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -7,6 +8,7 @@ from sqlalchemy.orm import selectinload
 
 from app.dependencies import DatabaseSession, get_current_user
 from app.db.models import AuditLog, Product, ProductReport, SellerProfile, User
+from app.modules.products.service import cleanup_catalog_subscriptions, visible_product_condition
 from app.modules.reports.schemas import ProductReportCreate, ProductReportResponse
 
 
@@ -32,11 +34,12 @@ async def report_product(
     db: DatabaseSession,
     current_user: Annotated[User, Depends(get_current_user)],
 ) -> ProductReportResponse:
+    await cleanup_catalog_subscriptions(db)
     product = await db.scalar(
         select(Product)
         .options(selectinload(Product.seller))
         .join(SellerProfile)
-        .where(Product.id == product_id, Product.status == "published")
+        .where(Product.id == product_id, Product.status == "published", visible_product_condition(datetime.now(UTC)))
     )
     if product is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Матеріал не знайдено.")

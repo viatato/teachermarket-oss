@@ -101,6 +101,31 @@ class SellerSubscriptionResponse(BaseModel):
     can_add_product: bool
 
 
+class SellerPlacementPurchaseResponse(BaseModel):
+    ok: bool
+    placement_id: UUID
+    product_id: UUID
+    paid_amount: int
+
+
+class SellerPlacementResponse(BaseModel):
+    placement_id: UUID
+    product_id: UUID
+    product_title: str | None = None
+    paid_amount: int
+    currency: str
+    paid_at: datetime
+    status: str
+    created_at: datetime
+
+
+class SellerPlacementsResponse(BaseModel):
+    items: list[SellerPlacementResponse]
+    page: int
+    limit: int
+    total: int
+
+
 class SellerStatsResponse(BaseModel):
     products_by_status: dict[str, int]
     contacts_total: int

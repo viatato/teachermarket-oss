@@ -14,6 +14,21 @@ from app.services.payments.base import PaymentWebhookEvent
 from app.services.payments.registry import get_payment_provider
 
 
+SUBSCRIPTION_VISIBILITY_GRACE_PERIOD = timedelta(days=7)
+
+
+def subscription_visibility_cutoff(now: datetime) -> datetime:
+    return now - SUBSCRIPTION_VISIBILITY_GRACE_PERIOD
+
+
+def subscription_is_visible_at(expires_at: datetime | None, now: datetime) -> bool:
+    return expires_at is None or expires_at >= subscription_visibility_cutoff(now)
+
+
+def subscription_should_expire_at(expires_at: datetime | None, now: datetime) -> bool:
+    return expires_at is not None and expires_at < subscription_visibility_cutoff(now)
+
+
 async def list_active_plans(db: AsyncSession) -> list[SubscriptionPlan]:
     result = await db.scalars(
         select(SubscriptionPlan)
@@ -33,7 +48,7 @@ async def get_active_paid_subscription(db: AsyncSession, seller: SellerProfile) 
             Subscription.seller_id == seller.id,
             Subscription.status.in_(("active", "trial")),
             SubscriptionPlan.price_amount > 0,
-            (Subscription.expires_at.is_(None)) | (Subscription.expires_at > now),
+            (Subscription.expires_at.is_(None)) | (Subscription.expires_at >= subscription_visibility_cutoff(now)),
         )
         .order_by(Subscription.expires_at.desc().nullslast(), Subscription.created_at.desc())
         .limit(1)
@@ -232,7 +247,7 @@ async def activate_or_extend_subscription(
 
     now = datetime.now(UTC)
     await expire_stale_subscriptions(db, payment.seller_id)
-    existing = await get_active_paid_subscription_by_seller_id(db, payment.seller_id)
+    existing = await get_current_subscription_by_seller_id(db, payment.seller_id)
     base_time = now
     if existing is not None and existing.expires_at is not None and existing.expires_at > now:
         base_time = existing.expires_at
@@ -257,20 +272,20 @@ async def activate_or_extend_subscription(
     return existing
 
 
-async def expire_stale_subscriptions(db: AsyncSession, seller_id: UUID) -> None:
+async def expire_stale_subscriptions(db: AsyncSession, seller_id: UUID | None = None) -> int:
     now = datetime.now(UTC)
-    stale = list(
-        await db.scalars(
-            select(Subscription).where(
-                Subscription.seller_id == seller_id,
-                Subscription.status.in_(("active", "trial")),
-                Subscription.expires_at.is_not(None),
-                Subscription.expires_at <= now,
-            )
-        )
-    )
+    filters = [
+        Subscription.status.in_(("active", "trial")),
+        Subscription.expires_at.is_not(None),
+        Subscription.expires_at < subscription_visibility_cutoff(now),
+    ]
+    if seller_id is not None:
+        filters.append(Subscription.seller_id == seller_id)
+
+    stale = list(await db.scalars(select(Subscription).where(*filters)))
     for subscription in stale:
         subscription.status = "expired"
+    return len(stale)
 
 
 async def get_active_paid_subscription_by_seller_id(
@@ -285,7 +300,24 @@ async def get_active_paid_subscription_by_seller_id(
             Subscription.seller_id == seller_id,
             Subscription.status.in_(("active", "trial")),
             SubscriptionPlan.price_amount > 0,
-            (Subscription.expires_at.is_(None)) | (Subscription.expires_at > now),
+            (Subscription.expires_at.is_(None)) | (Subscription.expires_at >= subscription_visibility_cutoff(now)),
+        )
+        .order_by(Subscription.expires_at.desc().nullslast(), Subscription.created_at.desc())
+        .limit(1)
+    )
+
+
+async def get_current_subscription_by_seller_id(
+    db: AsyncSession,
+    seller_id: UUID,
+) -> Subscription | None:
+    now = datetime.now(UTC)
+    return await db.scalar(
+        select(Subscription)
+        .where(
+            Subscription.seller_id == seller_id,
+            Subscription.status.in_(("active", "trial")),
+            (Subscription.expires_at.is_(None)) | (Subscription.expires_at >= subscription_visibility_cutoff(now)),
         )
         .order_by(Subscription.expires_at.desc().nullslast(), Subscription.created_at.desc())
         .limit(1)

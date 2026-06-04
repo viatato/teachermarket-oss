@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from uuid import UUID
 
 from fastapi import HTTPException, status
@@ -6,14 +7,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.db.models import AuditLog, Product, Review, SellerProfile, User
+from app.modules.products.service import cleanup_catalog_subscriptions, visible_product_condition
 from app.modules.reviews.schemas import ReviewCreate, ReviewUpdate
 
 
 async def load_reviewable_product(db: AsyncSession, product_id: UUID) -> Product:
+    await cleanup_catalog_subscriptions(db)
     product = await db.scalar(
         select(Product)
         .options(selectinload(Product.seller).selectinload(SellerProfile.user))
-        .where(Product.id == product_id, Product.status == "published")
+        .where(Product.id == product_id, Product.status == "published", visible_product_condition(datetime.now(UTC)))
     )
     if product is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Матеріал не знайдено.")
