@@ -8,13 +8,13 @@ from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 from urllib.parse import urlencode
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from fastapi import HTTPException
 from fastapi.routing import APIRoute
 
 from app.config import get_settings, validate_runtime_settings
-from app.db.models import SubscriptionPayment, User
+from app.db.models import Subscription, SubscriptionPayment, SubscriptionPlan, User
 from app.dependencies import require_admin
 from app.main import create_app
 from app.modules.admin.router import download_admin_file, read_admin_product
@@ -27,7 +27,7 @@ from app.modules.products.router import view_product
 from app.modules.products.schemas import CatalogProductDetail, CatalogProductListItem, ProductCreate
 from app.modules.products.service import anonymous_view_key, delete_product, submit_product, track_product_view, update_product
 from app.modules.subscriptions.router import mark_paid
-from app.modules.subscriptions.service import mark_mock_payment_paid, validate_webhook_event
+from app.modules.subscriptions.service import activate_or_extend_subscription, mark_mock_payment_paid, validate_webhook_event
 from app.security.rate_limit import rate_limit
 from app.services.payments.base import PaymentWebhookEvent
 from app.services.payments.mock import MockPaymentProvider
@@ -421,6 +421,103 @@ class SecurityCoreTests(unittest.TestCase):
                 return result is payment, activate.await_count
 
         self.assertEqual(asyncio.run(run_check()), (True, 0))
+
+    def test_subscription_plan_change_extends_from_current_expiry(self) -> None:
+        async def run_check() -> tuple[bool, datetime, UUID, UUID]:
+            seller_id = uuid4()
+            old_plan_id = uuid4()
+            new_plan = SubscriptionPlan(
+                id=uuid4(),
+                code="pro_year",
+                name="Pro Year",
+                price_amount=200000,
+                currency="UAH",
+                duration_days=365,
+                product_limit=50,
+            )
+            current_expiry = datetime.now(UTC) + timedelta(days=20)
+            existing = Subscription(
+                id=uuid4(),
+                seller_id=seller_id,
+                plan_id=old_plan_id,
+                status="active",
+                starts_at=datetime.now(UTC) - timedelta(days=10),
+                expires_at=current_expiry,
+            )
+            payment = SubscriptionPayment(
+                id=uuid4(),
+                seller_id=seller_id,
+                plan_id=new_plan.id,
+                plan=new_plan,
+                provider="mock",
+                status="created",
+                amount=new_plan.price_amount,
+                currency=new_plan.currency,
+            )
+
+            class FakeDb:
+                async def flush(self):
+                    pass
+
+            db = FakeDb()
+            with (
+                patch("app.modules.subscriptions.service.expire_stale_subscriptions", AsyncMock()) as expire,
+                patch("app.modules.subscriptions.service.get_active_paid_subscription_by_seller_id", AsyncMock(return_value=existing)),
+            ):
+                result = await activate_or_extend_subscription(db, payment)
+                expire.assert_awaited_once_with(db, seller_id)
+                return result is existing, existing.expires_at, existing.plan_id, new_plan.id
+
+        is_existing, expires_at, plan_id, new_plan_id = asyncio.run(run_check())
+        self.assertTrue(is_existing)
+        self.assertEqual(plan_id, new_plan_id)
+        self.assertGreater(expires_at, datetime.now(UTC) + timedelta(days=380))
+
+    def test_expired_subscription_state_creates_fresh_paid_period(self) -> None:
+        async def run_check() -> tuple[Subscription, list[Subscription]]:
+            seller_id = uuid4()
+            plan = SubscriptionPlan(
+                id=uuid4(),
+                code="pro_month",
+                name="Pro Month",
+                price_amount=20000,
+                currency="UAH",
+                duration_days=30,
+                product_limit=20,
+            )
+            payment = SubscriptionPayment(
+                id=uuid4(),
+                seller_id=seller_id,
+                plan_id=plan.id,
+                plan=plan,
+                provider="mock",
+                status="created",
+                amount=plan.price_amount,
+                currency=plan.currency,
+            )
+
+            class FakeDb:
+                def __init__(self) -> None:
+                    self.added: list[Subscription] = []
+
+                def add(self, item):
+                    self.added.append(item)
+
+                async def flush(self):
+                    pass
+
+            db = FakeDb()
+            with (
+                patch("app.modules.subscriptions.service.expire_stale_subscriptions", AsyncMock()),
+                patch("app.modules.subscriptions.service.get_active_paid_subscription_by_seller_id", AsyncMock(return_value=None)),
+            ):
+                result = await activate_or_extend_subscription(db, payment)
+                return result, db.added
+
+        subscription, added = asyncio.run(run_check())
+        self.assertIs(subscription, added[0])
+        self.assertEqual(subscription.status, "active")
+        self.assertGreater(subscription.expires_at, datetime.now(UTC) + timedelta(days=29))
 
     def test_wayforpay_amount_conversion_and_signature(self) -> None:
         self.assertEqual(amount_to_wayforpay(29900), "299.00")

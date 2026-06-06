@@ -96,7 +96,7 @@ TeacherMarket is intentionally scoped: OSS v1 focuses on catalog, author profile
 - Fill `docs/community-validation.md` with aggregate counts from both polls and the cloud beta tester list.
 - Use the `Кастдев Тічери` form for general teacher pain points and the `ТічерМаркет — опитування для викладачів` form for product-specific demand.
 - Repeated beta feedback has been converted into public GitHub issues labeled `community-feedback`.
-- Make sure `viatato/teachermarket` and the maintainer GitHub profile are public before submitting.
+- Make sure `viatato/teachermarket-oss` and the maintainer GitHub profile are public before submitting.
 - Confirm starter issues, release gates, CI status, and security docs are visible in the public repository.
 - Prepare the OpenAI Organization ID before opening the form.
 

@@ -2,7 +2,7 @@
 
 TeacherMarket uses an open-core separation model.
 
-This repository, `viatato/teachermarket`, is the public OSS core repository. It must stay self-hostable, safe to publish, and free from private production details.
+This repository, `viatato/teachermarket-oss`, is the public OSS core repository. It must stay self-hostable, safe to publish, and free from private production details.
 
 A separate private repository should be used for the hosted commercial deployment, for example `viatato/teachermarket-cloud`.
 
@@ -77,7 +77,7 @@ Recommended direction:
 
 ```text
 teachermarket-cloud -> imports/uses teachermarket core
-teachermarket       -> no dependency on teachermarket-cloud
+teachermarket-oss   -> no dependency on teachermarket-cloud
 ```
 
 Commercial behavior should be added through configuration, adapters, private packages, or deployment-specific services rather than hardcoded plan checks inside the OSS core.

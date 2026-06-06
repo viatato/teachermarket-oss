@@ -93,6 +93,11 @@ Implemented providers:
 
 Payments are for author subscriptions only in v1. Material checkout belongs to v2.
 
+See also:
+
+- `docs/subscription-plan-changes.md`
+- `docs/one-time-author-upload-fee.md`
+
 ## Security Boundaries
 
 - Telegram Mini App identity is verified from signed `initData`.
