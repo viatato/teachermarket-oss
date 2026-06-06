@@ -126,7 +126,7 @@ OpenAI Codex would help the project move from a working MVP to a maintainable op
 ## Submission Readiness Checklist
 
 - [ ] GitHub profile is public.
-- [ ] `viatato/teachermarket` repository is public.
+- [ ] `viatato/teachermarket-oss` repository is public.
 - [ ] `docs/community-validation.md` contains aggregate poll and beta tester counts.
 - [ ] Public feedback issues labeled `community-feedback` are created from non-private beta feedback.
 - [ ] Starter issues from `docs/github-starter-issues.md` are visible.

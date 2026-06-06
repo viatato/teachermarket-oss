@@ -9,7 +9,12 @@ These checks must be complete before tagging `v0.1.0-beta`.
 - [ ] `cd apps/bot && python -m compileall bot`
 - [ ] `cd apps/webapp && npm run build`
 - [ ] `git diff --check`
+- [ ] `python3 scripts/release_readiness.py --skip-commands`
 - [x] GitHub Actions CI green
+
+The release readiness script is a read-only summary helper for local or
+production smoke signals. It does not replace the manual Telegram-client smoke
+test because real Mini App auth depends on Telegram-provided `initData`.
 
 ## Public Repository Safety
 

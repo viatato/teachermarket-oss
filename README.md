@@ -116,6 +116,8 @@ docker compose --profile app exec api python -m app.db.seed
 - [Roadmap](docs/roadmap.md)
 - [Codex guide](docs/codex.md)
 - [Community validation](docs/community-validation.md)
+- [Subscription plan changes](docs/subscription-plan-changes.md)
+- [One-time author upload fee proposal](docs/one-time-author-upload-fee.md)
 - [OpenAI OSS application draft](docs/openai_oss_application.md)
 - [OpenAI Codex application notes](docs/openai-application-notes.md)
 - [Public release checklist](docs/public-release-checklist.md)

@@ -45,7 +45,7 @@ git init
 git add .
 git commit -m "Initial open-source release"
 git branch -M main
-git remote add origin git@github.com:viatato/teachermarket.git
+git remote add origin git@github.com:viatato/teachermarket-oss.git
 git push -u origin main
 ```
 
