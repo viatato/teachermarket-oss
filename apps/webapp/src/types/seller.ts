@@ -42,6 +42,7 @@ export type SellerProductVisibility = {
   subscription_grace_until?: string | null;
   has_active_placement: boolean;
   active_placement_id?: string | null;
+  placement_checkout_available: boolean;
 };
 
 export type SellerPlacementPurchaseResponse = {

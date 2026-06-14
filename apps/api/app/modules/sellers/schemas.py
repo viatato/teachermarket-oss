@@ -78,6 +78,7 @@ class SellerProductVisibilityResponse(BaseModel):
     subscription_grace_until: datetime | None = None
     has_active_placement: bool
     active_placement_id: UUID | None = None
+    placement_checkout_available: bool
 
 
 class SellerContactRequestResponse(BaseModel):

@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     default_free_product_limit: int = 3
     pro_author_product_limit: int = 50
     feature_subscriptions_enabled: bool = True
-    feature_placements_enabled: bool = True
+    feature_placements_enabled: bool = False
     feature_reviews_enabled: bool = True
     feature_reports_enabled: bool = True
     storage_provider: str = "local"

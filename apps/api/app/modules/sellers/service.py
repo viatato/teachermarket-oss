@@ -32,6 +32,20 @@ def ensure_placements_enabled() -> None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Функцію не знайдено.")
 
 
+def placement_checkout_available() -> bool:
+    settings = get_settings()
+    return settings.feature_placements_enabled and settings.payment_provider == "mock"
+
+
+def ensure_placement_checkout_available() -> None:
+    ensure_placements_enabled()
+    if not placement_checkout_available():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Оплата разового розміщення ще не налаштована.",
+        )
+
+
 def telegram_contact_url(username: str | None) -> str | None:
     if not username:
         return None
@@ -226,11 +240,12 @@ async def get_seller_product_visibility(db: AsyncSession, user: User, product_id
         "subscription_grace_until": subscription_grace_until(subscription.expires_at) if subscription else None,
         "has_active_placement": has_active_placement,
         "active_placement_id": placement.id if placement else None,
+        "placement_checkout_available": placement_checkout_available(),
     }
 
 
 async def buy_one_time_placement(db: AsyncSession, user: User, product_id: UUID) -> OneTimePlacement:
-    ensure_placements_enabled()
+    ensure_placement_checkout_available()
     profile = await require_seller_profile(db, user)
     product = await db.scalar(select(Product).where(Product.id == product_id, Product.seller_id == profile.id))
     if product is None:

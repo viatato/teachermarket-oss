@@ -9,7 +9,7 @@ from fastapi import HTTPException
 from fastapi.routing import APIRoute
 from sqlalchemy.dialects import postgresql
 
-from app.config import get_settings
+from app.config import Settings, get_settings
 from app.db.models import User
 from app.dependencies import get_current_user, require_admin
 from app.main import create_app
@@ -24,7 +24,12 @@ from app.modules.products.service import visible_product_condition
 from app.modules.reports.router import require_reports_enabled
 from app.modules.reviews.router import post_review, require_reviews_enabled
 from app.modules.sellers.router import buy_product_placement, read_seller_subscription
-from app.modules.sellers.service import buy_one_time_placement, ensure_placements_enabled, list_seller_placements
+from app.modules.sellers.service import (
+    buy_one_time_placement,
+    ensure_placement_checkout_available,
+    ensure_placements_enabled,
+    list_seller_placements,
+)
 from app.modules.subscriptions.router import checkout_subscription, mark_paid, subscription_plans
 from app.modules.subscriptions.service import ensure_subscriptions_enabled
 
@@ -60,12 +65,25 @@ class FeatureFlagTests(unittest.TestCase):
             callable_()
         self.assertEqual(ctx.exception.status_code, 404)
 
-    def test_feature_flags_default_to_enabled(self) -> None:
-        settings = get_settings()
+    def test_feature_flags_use_safe_defaults(self) -> None:
+        settings = Settings(_env_file=None)
         self.assertTrue(settings.feature_subscriptions_enabled)
-        self.assertTrue(settings.feature_placements_enabled)
+        self.assertFalse(settings.feature_placements_enabled)
         self.assertTrue(settings.feature_reviews_enabled)
         self.assertTrue(settings.feature_reports_enabled)
+
+    def test_real_payment_provider_cannot_mock_activate_placement(self) -> None:
+        with patch.dict(
+            os.environ,
+            {
+                "FEATURE_PLACEMENTS_ENABLED": "true",
+                "PAYMENT_PROVIDER": "wayforpay",
+            },
+        ):
+            get_settings.cache_clear()
+            with self.assertRaises(HTTPException) as ctx:
+                ensure_placement_checkout_available()
+        self.assertEqual(ctx.exception.status_code, 409)
 
     def test_disabled_feature_guards_return_404_before_service_work(self) -> None:
         with patch.dict(
@@ -132,7 +150,15 @@ class FeatureFlagTests(unittest.TestCase):
         self.assertIn(require_admin, admin_reports_deps)
 
     def test_visibility_predicate_ignores_disabled_optional_modules(self) -> None:
-        default_sql = self.compile_visibility_sql()
+        with patch.dict(
+            os.environ,
+            {
+                "FEATURE_SUBSCRIPTIONS_ENABLED": "true",
+                "FEATURE_PLACEMENTS_ENABLED": "true",
+            },
+        ):
+            get_settings.cache_clear()
+            default_sql = self.compile_visibility_sql()
         self.assertIn("subscriptions.seller_id = products.seller_id", default_sql)
         self.assertIn("one_time_placements.product_id = products.id", default_sql)
 
@@ -142,4 +168,3 @@ class FeatureFlagTests(unittest.TestCase):
         self.assertNotIn("subscriptions.seller_id = products.seller_id", disabled_sql)
         self.assertNotIn("one_time_placements.product_id = products.id", disabled_sql)
         self.assertIn("products_1.status = 'published'", disabled_sql)
-

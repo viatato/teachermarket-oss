@@ -146,6 +146,20 @@ def check_static() -> list[Check]:
             "pass" if file_contains("apps/api/app/modules/subscriptions/router.py", ["mock/{payment_id}/mark-paid", "require_admin"]) else "fail",
             "apps/api/app/modules/subscriptions/router.py",
         ),
+        Check(
+            "Placement mock activation is development-only",
+            "pass"
+            if file_contains(
+                "apps/api/app/modules/sellers/service.py",
+                ["payment_provider == \"mock\"", "ensure_placement_checkout_available"],
+            )
+            and file_contains(
+                "apps/webapp/src/pages/SellerDashboardPage.tsx",
+                ["placement_checkout_available"],
+            )
+            else "fail",
+            "seller placement API and Mini App guard",
+        ),
     ]
     return checks
 

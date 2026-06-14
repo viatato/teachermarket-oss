@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 from uuid import UUID, uuid4
 
+from fastapi import HTTPException
 from fastapi.routing import APIRoute
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.dialects import postgresql
@@ -14,11 +15,27 @@ from app.dependencies import get_current_user, require_admin
 from app.main import create_app
 from app.modules.products.service import FREE_VISIBLE_PRODUCT_LIMIT, visible_product_condition
 from app.modules.sellers.router import buy_product_placement, read_seller_placements, read_seller_product_visibility
+from app.config import get_settings
 from app.modules.sellers.service import ONE_TIME_PLACEMENT_AMOUNT, buy_one_time_placement, get_seller_product_visibility
 from app.modules.subscriptions.service import activate_or_extend_subscription, subscription_visibility_cutoff
 
 
 class PlacementFeatureTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.settings_patch = patch.dict(
+            "os.environ",
+            {
+                "FEATURE_PLACEMENTS_ENABLED": "true",
+                "PAYMENT_PROVIDER": "mock",
+            },
+        )
+        self.settings_patch.start()
+        get_settings.cache_clear()
+
+    def tearDown(self) -> None:
+        self.settings_patch.stop()
+        get_settings.cache_clear()
+
     def compile_visibility_sql(self) -> str:
         now = datetime(2026, 6, 4, 12, 0, tzinfo=UTC)
         return str(
@@ -71,6 +88,19 @@ class PlacementFeatureTests(unittest.TestCase):
         self.assertEqual(placement.status, "active")
         self.assertEqual(commits, 1)
         self.assertEqual(added_count, 2)
+
+    def test_buy_placement_rejects_non_mock_provider_before_db_access(self) -> None:
+        with patch.dict("os.environ", {"PAYMENT_PROVIDER": "wayforpay"}):
+            get_settings.cache_clear()
+            with self.assertRaises(HTTPException) as ctx:
+                asyncio.run(
+                    buy_one_time_placement(
+                        SimpleNamespace(),
+                        User(id=uuid4(), telegram_id=123),
+                        uuid4(),
+                    )
+                )
+        self.assertEqual(ctx.exception.status_code, 409)
 
     def test_buy_placement_is_idempotent_for_active_existing_placement(self) -> None:
         async def run_check() -> tuple[bool, int, int]:

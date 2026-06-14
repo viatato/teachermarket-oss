@@ -1143,6 +1143,7 @@ function SellerProductVisibilityBlock({
     tone: fallbackTone,
   };
   const canBuyPlacement =
+    visibility.placement_checkout_available &&
     product.status === "published" &&
     visibility.primary_reason === "hidden_after_grace" &&
     !visibility.has_active_placement;
