@@ -40,7 +40,7 @@ jobs:
           python-version: "3.11"
       - name: Install API
         working-directory: apps/api
-        run: pip install -e .
+        run: pip install -e ".[dev]"
       - name: Run API tests
         working-directory: apps/api
         run: python -m unittest discover app/tests -v
