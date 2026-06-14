@@ -119,3 +119,5 @@ Future generic extension points should stay in OSS core only when they are usefu
 - optional v2 order/download module.
 
 Hosted-only operations, managed infrastructure, seller payouts, fraud scoring, and private analytics should live outside the public core.
+
+Optional moderation assistance must follow the human-in-the-loop and data-minimization rules in `docs/automoderation-assist.md`.
