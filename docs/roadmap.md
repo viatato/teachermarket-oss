@@ -28,7 +28,7 @@
 
 - More integration tests around product lifecycle and contact requests.
 - Docker production example.
-- Optional MinIO example.
+- MinIO self-hosting example.
 - Stronger backup/restore docs.
 - Dependency scanning and security workflow.
 - Better observability guidance.

@@ -113,6 +113,34 @@ S3_REGION=auto
 
 Keep product files private. Preview delivery can be public or signed depending on bucket policy and deployment needs.
 
+### Local MinIO
+
+TeacherMarket includes an optional MinIO profile for testing the S3 adapter without an external provider. In `.env`, enable the example settings from the MinIO block:
+
+```text
+STORAGE_PROVIDER=s3
+S3_ENDPOINT_URL=http://minio:9000
+S3_ACCESS_KEY_ID=teachermarket_minio
+S3_SECRET_ACCESS_KEY=change_this_minio_password
+S3_BUCKET=teachermarket
+S3_REGION=us-east-1
+MINIO_ROOT_USER=teachermarket_minio
+MINIO_ROOT_PASSWORD=change_this_minio_password
+```
+
+Use a different password before exposing MinIO beyond your local machine. Start the app and MinIO together:
+
+```bash
+docker compose --profile app --profile minio up --build
+docker compose --profile app exec api alembic upgrade head
+```
+
+The object API is available at `http://localhost:9000`, and the MinIO console is available at `http://localhost:9001`. The `minio-init` service creates the configured bucket and explicitly keeps anonymous access disabled.
+
+If the API runs directly on the host instead of inside Compose, use `S3_ENDPOINT_URL=http://localhost:9000`.
+
+Product files remain private and are only read through authenticated or admin API flows. Preview images are delivered through TeacherMarket's `/files/preview/...` route, so a public bucket policy is not required.
+
 ## Subscription Payments
 
 Local/closed beta:
