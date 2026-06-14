@@ -162,6 +162,10 @@ WAYFORPAY_MERCHANT_DOMAIN=your-domain.example
 
 Payments are for author subscriptions only. TeacherMarket OSS v1 does not process material purchases or payouts.
 
+## Complaints and Moderation
+
+Before inviting users, publish community rules, choose a private support channel, and assign an admin responsible for reports. Use [the material complaint policy](complaint-policy.md) as a baseline, then adapt response targets and retention periods to your deployment and jurisdiction.
+
 ## Static Webapp Deployment
 
 Build with the public API prefix used by your reverse proxy:
