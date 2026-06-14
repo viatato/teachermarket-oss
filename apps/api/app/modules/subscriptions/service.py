@@ -12,6 +12,12 @@ from app.modules.sellers.service import require_seller_profile
 from app.modules.subscriptions.schemas import SubscriptionCheckoutCreate
 from app.services.payments.base import PaymentWebhookEvent
 from app.services.payments.registry import get_payment_provider
+from app.services.payments.states import (
+    PAYMENT_CREATED,
+    PAYMENT_PAID,
+    canonical_payment_status,
+    payment_transition_allowed,
+)
 
 
 SUBSCRIPTION_VISIBILITY_GRACE_PERIOD = timedelta(days=7)
@@ -93,7 +99,7 @@ async def create_subscription_checkout(
         provider=provider.code,
         amount=plan.price_amount,
         currency=plan.currency,
-        status="created",
+        status=PAYMENT_CREATED,
         raw_payload={"plan_code": plan.code},
     )
     db.add(payment)
@@ -133,16 +139,16 @@ async def mark_mock_payment_paid(db: AsyncSession, *, payment_id: UUID, actor: U
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Цей endpoint доступний лише для mock-платежів.",
         )
-    if payment.status == "paid":
+    if payment.status == PAYMENT_PAID:
         return payment
-    if payment.status != "created":
+    if not payment_transition_allowed(payment.status, PAYMENT_PAID):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Платіж не можна оплатити в поточному статусі.",
         )
 
     subscription = await activate_or_extend_subscription(db, payment)
-    payment.status = "paid"
+    payment.status = PAYMENT_PAID
     payment.subscription_id = subscription.id
     payment.raw_payload = {
         **(payment.raw_payload or {}),
@@ -176,13 +182,21 @@ async def process_payment_webhook(
 
     payment = await load_payment_by_provider_id(db, provider_code=provider.code, provider_payment_id=event.provider_payment_id)
     validate_webhook_event(payment, event)
+    target_status = canonical_payment_status(event.status)
+    if target_status is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Непідтримуваний статус платежу.")
 
-    if payment.status == "paid":
+    if payment.status == PAYMENT_PAID or payment.status == target_status:
         return payment, event.response_payload
+    if not payment_transition_allowed(payment.status, target_status):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Перехід між статусами платежу заборонено.",
+        )
 
-    if event.status in {"paid", "succeeded", "success"}:
+    if target_status == PAYMENT_PAID:
         subscription = await activate_or_extend_subscription(db, payment)
-        payment.status = "paid"
+        payment.status = PAYMENT_PAID
         payment.subscription_id = subscription.id
         payment.raw_payload = {
             **(payment.raw_payload or {}),
@@ -198,8 +212,8 @@ async def process_payment_webhook(
                 meta={"provider": provider.code, "subscription_id": str(subscription.id)},
             )
         )
-    elif event.status in {"failed", "canceled", "expired"}:
-        payment.status = event.status
+    else:
+        payment.status = target_status
         payment.raw_payload = {**(payment.raw_payload or {}), "webhook": event.raw_payload}
         db.add(
             AuditLog(
@@ -207,11 +221,9 @@ async def process_payment_webhook(
                 action="subscription.webhook_failed",
                 entity_type="subscription_payment",
                 entity_id=payment.id,
-                meta={"provider": provider.code, "status": event.status},
+                meta={"provider": provider.code, "status": target_status},
             )
         )
-    else:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Непідтримуваний статус платежу.")
 
     await db.commit()
     return await load_payment(db, payment.id), event.response_payload

@@ -13,8 +13,14 @@ from app.db.models import SubscriptionPayment
 from app.services.payments.base import CreatedPayment, PaymentWebhookEvent
 
 
-APPROVED_STATUSES = {"approved"}
-FAILED_STATUSES = {"declined", "expired", "refunded", "voided", "refundinprocessing"}
+WAYFORPAY_STATUS_MAP = {
+    "approved": "paid",
+    "declined": "failed",
+    "expired": "expired",
+    "refunded": "failed",
+    "voided": "canceled",
+    "refundinprocessing": "failed",
+}
 
 
 class WayForPayProvider:
@@ -90,12 +96,7 @@ class WayForPayProvider:
         if not order_reference or not transaction_status or amount is None or not currency:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Webhook payload неповний.")
 
-        if transaction_status in APPROVED_STATUSES:
-            status_value = "paid"
-        elif transaction_status in FAILED_STATUSES:
-            status_value = "failed"
-        else:
-            status_value = transaction_status
+        status_value = WAYFORPAY_STATUS_MAP.get(transaction_status, transaction_status)
 
         payment_id = None
         if order_reference.startswith("wfp_"):

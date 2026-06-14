@@ -95,6 +95,7 @@ Payments are for author subscriptions only in v1. Material checkout belongs to v
 
 See also:
 
+- `docs/payment-lifecycle.md`
 - `docs/subscription-plan-changes.md`
 - `docs/one-time-author-upload-fee.md`
 
