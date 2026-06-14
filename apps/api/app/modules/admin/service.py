@@ -11,9 +11,15 @@ from sqlalchemy.orm import selectinload
 
 from app.db.models import AuditLog, Product, ProductReport, SellerProfile, Subscription, SubscriptionPlan, User
 from app.config import Settings, get_settings
+from app.modules.subscriptions.service import ensure_subscriptions_enabled, subscription_visibility_cutoff
 
 
 logger = logging.getLogger(__name__)
+
+
+def ensure_reports_enabled() -> None:
+    if not get_settings().feature_reports_enabled:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Функцію не знайдено.")
 
 
 async def list_pending_products(db: AsyncSession) -> list[Product]:
@@ -206,6 +212,7 @@ def send_telegram_message(token: str, chat_id: int, text: str) -> None:
 
 
 async def list_admin_subscription_states(db: AsyncSession) -> list[tuple[SellerProfile, Subscription | None, int, int]]:
+    ensure_subscriptions_enabled()
     sellers = list(
         await db.scalars(
             select(SellerProfile)
@@ -237,7 +244,7 @@ async def get_best_active_subscription(db: AsyncSession, seller_id: UUID) -> Sub
         .where(
             Subscription.seller_id == seller_id,
             Subscription.status.in_(("active", "trial")),
-            (Subscription.expires_at.is_(None)) | (Subscription.expires_at > now),
+            (Subscription.expires_at.is_(None)) | (Subscription.expires_at >= subscription_visibility_cutoff(now)),
         )
         .order_by(SubscriptionPlan.product_limit.desc(), Subscription.expires_at.desc().nullslast())
         .limit(1)
@@ -252,6 +259,7 @@ async def activate_seller_subscription(
     plan_id: UUID,
     duration_days: int | None = None,
 ) -> Subscription:
+    ensure_subscriptions_enabled()
     seller = await db.scalar(select(SellerProfile).where(SellerProfile.id == seller_id))
     if seller is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Автора не знайдено.")
@@ -315,7 +323,7 @@ async def expire_stale_and_conflicting_subscriptions(db: AsyncSession, seller_id
                 Subscription.seller_id == seller_id,
                 Subscription.status.in_(("active", "trial")),
                 Subscription.expires_at.is_not(None),
-                Subscription.expires_at <= now,
+                Subscription.expires_at < subscription_visibility_cutoff(now),
             )
         )
     )
@@ -324,6 +332,7 @@ async def expire_stale_and_conflicting_subscriptions(db: AsyncSession, seller_id
 
 
 async def list_subscription_plans(db: AsyncSession, *, include_inactive: bool = False) -> list[SubscriptionPlan]:
+    ensure_subscriptions_enabled()
     filters = [] if include_inactive else [SubscriptionPlan.is_active.is_(True)]
     return list(
         await db.scalars(
@@ -340,6 +349,7 @@ async def create_subscription_plan(
     actor: User,
     payload,
 ) -> SubscriptionPlan:
+    ensure_subscriptions_enabled()
     plan = SubscriptionPlan(
         code=payload.code.strip().lower(),
         name=payload.name.strip(),
@@ -372,6 +382,7 @@ async def update_subscription_plan(
     plan_id: UUID,
     payload,
 ) -> SubscriptionPlan:
+    ensure_subscriptions_enabled()
     plan = await db.scalar(select(SubscriptionPlan).where(SubscriptionPlan.id == plan_id))
     if plan is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Тариф не знайдено.")
@@ -399,6 +410,7 @@ async def update_subscription_plan(
 
 
 async def deactivate_subscription_plan(db: AsyncSession, *, actor: User, plan_id: UUID) -> SubscriptionPlan:
+    ensure_subscriptions_enabled()
     plan = await db.scalar(select(SubscriptionPlan).where(SubscriptionPlan.id == plan_id))
     if plan is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Тариф не знайдено.")
@@ -457,6 +469,7 @@ async def update_user_blocked(db: AsyncSession, *, actor: User, user_id: UUID, i
 
 
 async def list_product_reports(db: AsyncSession, *, report_status: str | None = None) -> list[ProductReport]:
+    ensure_reports_enabled()
     filters = []
     if report_status:
         filters.append(ProductReport.status == report_status)
@@ -471,6 +484,7 @@ async def list_product_reports(db: AsyncSession, *, report_status: str | None = 
 
 
 async def resolve_product_report(db: AsyncSession, *, actor: User, report_id: UUID) -> ProductReport:
+    ensure_reports_enabled()
     report = await db.scalar(
         select(ProductReport).options(selectinload(ProductReport.product)).where(ProductReport.id == report_id)
     )

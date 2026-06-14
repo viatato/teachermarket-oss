@@ -20,6 +20,38 @@ export type SellerProduct = {
   published_at?: string | null;
 };
 
+export type SellerProductVisibilityReason =
+  | "paid_subscription"
+  | "subscription_grace"
+  | "one_time_placement"
+  | "free_tier"
+  | "not_published"
+  | "hidden_after_grace";
+
+export type SellerProductVisibility = {
+  product_id: string;
+  is_visible: boolean;
+  primary_reason: SellerProductVisibilityReason | string;
+  reasons: string[];
+  product_status: string;
+  published_rank?: number | null;
+  free_tier_limit: number;
+  has_paid_subscription_visibility: boolean;
+  subscription_status?: string | null;
+  subscription_expires_at?: string | null;
+  subscription_grace_until?: string | null;
+  has_active_placement: boolean;
+  active_placement_id?: string | null;
+  placement_checkout_available: boolean;
+};
+
+export type SellerPlacementPurchaseResponse = {
+  ok: boolean;
+  placement_id: string;
+  product_id: string;
+  paid_amount: number;
+};
+
 export type SellerContactRequest = {
   id: string;
   product_id: string;

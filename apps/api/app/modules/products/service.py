@@ -3,18 +3,106 @@ from datetime import UTC, date, datetime
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from sqlalchemy import func, or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import aliased, selectinload
 
 from app.config import get_settings
-from app.db.models import AuditLog, File, Product, ProductPreview, ProductViewEvent, SellerProfile, Subscription, SubscriptionPlan, User
+from app.db.models import (
+    AuditLog,
+    File,
+    OneTimePlacement,
+    Product,
+    ProductPreview,
+    ProductViewEvent,
+    SellerProfile,
+    Subscription,
+    SubscriptionPlan,
+    User,
+)
 from app.modules.files.service import PREVIEW_IMAGE_KIND, PRODUCT_FILE_KIND
 from app.modules.products.schemas import DELIVERY_UPLOADED_FILE, ProductCreate, ProductUpdate
 from app.modules.sellers.service import get_seller_profile
+from app.modules.subscriptions.service import expire_stale_subscriptions, subscription_visibility_cutoff
 
 
 COUNTED_PRODUCT_STATUSES = {"published", "pending_moderation"}
+FREE_VISIBLE_PRODUCT_LIMIT = 3
+
+
+def is_product_visible_by_policy(
+    *,
+    has_paid_subscription: bool,
+    has_one_time_placement: bool,
+    seller_published_rank: int | None,
+) -> bool:
+    return has_paid_subscription or has_one_time_placement or (
+        seller_published_rank is not None and seller_published_rank <= FREE_VISIBLE_PRODUCT_LIMIT
+    )
+
+
+async def cleanup_catalog_subscriptions(db: AsyncSession) -> None:
+    if not get_settings().feature_subscriptions_enabled:
+        return
+    expired_count = await expire_stale_subscriptions(db)
+    if expired_count:
+        await db.commit()
+
+
+def paid_subscription_visibility_condition(now: datetime):
+    cutoff = subscription_visibility_cutoff(now)
+    return (
+        select(Subscription.id)
+        .join(SubscriptionPlan, Subscription.plan_id == SubscriptionPlan.id)
+        .where(
+            Subscription.seller_id == Product.seller_id,
+            Subscription.status.in_(("active", "trial")),
+            SubscriptionPlan.price_amount > 0,
+            (Subscription.expires_at.is_(None)) | (Subscription.expires_at >= cutoff),
+        )
+        .correlate(Product)
+        .exists()
+    )
+
+
+def active_placement_visibility_condition():
+    return (
+        select(OneTimePlacement.id)
+        .where(
+            OneTimePlacement.product_id == Product.id,
+            OneTimePlacement.status == "active",
+        )
+        .correlate(Product)
+        .exists()
+    )
+
+
+def free_tier_visibility_condition():
+    free_product = aliased(Product)
+    free_rank = (
+        select(func.count(free_product.id))
+        .where(
+            free_product.seller_id == Product.seller_id,
+            free_product.status == "published",
+            or_(
+                free_product.created_at < Product.created_at,
+                and_(free_product.created_at == Product.created_at, free_product.id <= Product.id),
+            ),
+        )
+        .correlate(Product)
+        .scalar_subquery()
+    )
+    return free_rank <= FREE_VISIBLE_PRODUCT_LIMIT
+
+
+def visible_product_condition(now: datetime):
+    settings = get_settings()
+    conditions = [free_tier_visibility_condition()]
+    if settings.feature_subscriptions_enabled:
+        conditions.append(paid_subscription_visibility_condition(now))
+    if settings.feature_placements_enabled:
+        conditions.append(active_placement_visibility_condition())
+    return or_(*conditions)
 
 
 async def load_product_with_previews(db: AsyncSession, product_id: UUID) -> Product:
@@ -39,6 +127,9 @@ async def require_seller_profile(db: AsyncSession, user: User) -> SellerProfile:
 
 
 async def get_active_product_limit(db: AsyncSession, seller: SellerProfile) -> int:
+    settings = get_settings()
+    if not settings.feature_subscriptions_enabled:
+        return settings.default_free_product_limit
     now = datetime.now(UTC)
     result = await db.execute(
         select(SubscriptionPlan.product_limit)
@@ -46,7 +137,7 @@ async def get_active_product_limit(db: AsyncSession, seller: SellerProfile) -> i
         .where(
             Subscription.seller_id == seller.id,
             Subscription.status.in_(("active", "trial")),
-            (Subscription.expires_at.is_(None)) | (Subscription.expires_at > now),
+            (Subscription.expires_at.is_(None)) | (Subscription.expires_at >= subscription_visibility_cutoff(now)),
             SubscriptionPlan.is_active.is_(True),
         )
         .order_by(SubscriptionPlan.product_limit.desc())
@@ -278,7 +369,10 @@ async def list_published_products(
     page: int = 1,
     limit: int = 20,
 ) -> tuple[list[Product], int]:
+    await cleanup_catalog_subscriptions(db)
+    now = datetime.now(UTC)
     filters = [Product.status == "published"]
+    filters.append(visible_product_condition(now))
     if language:
         filters.append(Product.language == language)
     if level:
@@ -315,10 +409,12 @@ async def list_published_products(
 
 
 async def get_published_product(db: AsyncSession, product_id: UUID) -> Product:
+    await cleanup_catalog_subscriptions(db)
+    now = datetime.now(UTC)
     product = await db.scalar(
         select(Product)
         .options(selectinload(Product.previews), selectinload(Product.seller))
-        .where(Product.id == product_id, Product.status == "published")
+        .where(Product.id == product_id, Product.status == "published", visible_product_condition(now))
     )
     if product is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Матеріал не знайдено.")
@@ -342,7 +438,7 @@ async def track_product_view(
     product = await db.scalar(
         select(Product)
         .options(selectinload(Product.seller))
-        .where(Product.id == product_id, Product.status == "published")
+        .where(Product.id == product_id, Product.status == "published", visible_product_condition(datetime.now(UTC)))
     )
     if product is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Матеріал не знайдено.")

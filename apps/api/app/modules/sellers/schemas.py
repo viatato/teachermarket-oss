@@ -64,6 +64,23 @@ class SellerProductResponse(BaseModel):
     published_at: datetime | None = None
 
 
+class SellerProductVisibilityResponse(BaseModel):
+    product_id: UUID
+    is_visible: bool
+    primary_reason: str
+    reasons: list[str]
+    product_status: str
+    published_rank: int | None = None
+    free_tier_limit: int
+    has_paid_subscription_visibility: bool
+    subscription_status: str | None = None
+    subscription_expires_at: datetime | None = None
+    subscription_grace_until: datetime | None = None
+    has_active_placement: bool
+    active_placement_id: UUID | None = None
+    placement_checkout_available: bool
+
+
 class SellerContactRequestResponse(BaseModel):
     id: UUID
     product_id: UUID
@@ -99,6 +116,31 @@ class SellerSubscriptionResponse(BaseModel):
     product_limit: int
     product_count: int
     can_add_product: bool
+
+
+class SellerPlacementPurchaseResponse(BaseModel):
+    ok: bool
+    placement_id: UUID
+    product_id: UUID
+    paid_amount: int
+
+
+class SellerPlacementResponse(BaseModel):
+    placement_id: UUID
+    product_id: UUID
+    product_title: str | None = None
+    paid_amount: int
+    currency: str
+    paid_at: datetime
+    status: str
+    created_at: datetime
+
+
+class SellerPlacementsResponse(BaseModel):
+    items: list[SellerPlacementResponse]
+    page: int
+    limit: int
+    total: int
 
 
 class SellerStatsResponse(BaseModel):

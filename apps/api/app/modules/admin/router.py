@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import Response
 from sqlalchemy import func, select
 
+from app.config import get_settings
 from app.dependencies import DatabaseSession, require_admin
 from app.db.models import File as FileModel
 from app.db.models import Product, SellerProfile, Subscription, User
@@ -50,6 +51,16 @@ from app.services.storage.s3 import StorageUnavailableError
 
 
 router = APIRouter(prefix="/admin", tags=["admin"])
+
+
+def require_admin_subscriptions_enabled() -> None:
+    if not get_settings().feature_subscriptions_enabled:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Функцію не знайдено.")
+
+
+def require_admin_reports_enabled() -> None:
+    if not get_settings().feature_reports_enabled:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Функцію не знайдено.")
 
 
 def admin_product_response(product: Product) -> AdminProductResponse:
@@ -287,7 +298,11 @@ async def bulk_restore(
     return [admin_product_response(product) for product in products]
 
 
-@router.get("/subscriptions", response_model=list[AdminSubscriptionResponse])
+@router.get(
+    "/subscriptions",
+    response_model=list[AdminSubscriptionResponse],
+    dependencies=[Depends(require_admin_subscriptions_enabled)],
+)
 async def subscriptions(
     db: DatabaseSession,
     _: Annotated[User, Depends(require_admin)],
@@ -299,7 +314,11 @@ async def subscriptions(
     ]
 
 
-@router.get("/subscription-plans", response_model=list[AdminSubscriptionPlanResponse])
+@router.get(
+    "/subscription-plans",
+    response_model=list[AdminSubscriptionPlanResponse],
+    dependencies=[Depends(require_admin_subscriptions_enabled)],
+)
 async def admin_subscription_plans(
     db: DatabaseSession,
     _: Annotated[User, Depends(require_admin)],
@@ -309,7 +328,12 @@ async def admin_subscription_plans(
     return [admin_plan_response(plan) for plan in plans]
 
 
-@router.post("/subscription-plans", response_model=AdminSubscriptionPlanResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/subscription-plans",
+    response_model=AdminSubscriptionPlanResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_admin_subscriptions_enabled)],
+)
 async def admin_create_subscription_plan(
     payload: AdminSubscriptionPlanCreate,
     db: DatabaseSession,
@@ -319,7 +343,11 @@ async def admin_create_subscription_plan(
     return admin_plan_response(plan)
 
 
-@router.patch("/subscription-plans/{plan_id}", response_model=AdminSubscriptionPlanResponse)
+@router.patch(
+    "/subscription-plans/{plan_id}",
+    response_model=AdminSubscriptionPlanResponse,
+    dependencies=[Depends(require_admin_subscriptions_enabled)],
+)
 async def admin_patch_subscription_plan(
     plan_id: UUID,
     payload: AdminSubscriptionPlanUpdate,
@@ -330,7 +358,11 @@ async def admin_patch_subscription_plan(
     return admin_plan_response(plan)
 
 
-@router.delete("/subscription-plans/{plan_id}", response_model=AdminSubscriptionPlanResponse)
+@router.delete(
+    "/subscription-plans/{plan_id}",
+    response_model=AdminSubscriptionPlanResponse,
+    dependencies=[Depends(require_admin_subscriptions_enabled)],
+)
 async def admin_delete_subscription_plan(
     plan_id: UUID,
     db: DatabaseSession,
@@ -340,7 +372,11 @@ async def admin_delete_subscription_plan(
     return admin_plan_response(plan)
 
 
-@router.post("/sellers/{seller_id}/activate-subscription", response_model=AdminSubscriptionResponse)
+@router.post(
+    "/sellers/{seller_id}/activate-subscription",
+    response_model=AdminSubscriptionResponse,
+    dependencies=[Depends(require_admin_subscriptions_enabled)],
+)
 async def activate_subscription(
     seller_id: UUID,
     payload: AdminActivateSubscriptionRequest,
@@ -399,7 +435,11 @@ async def patch_user_blocked(
     return {"id": user.id, "telegram_id": user.telegram_id, "is_blocked": user.is_blocked}
 
 
-@router.get("/reports", response_model=list[AdminProductReportResponse])
+@router.get(
+    "/reports",
+    response_model=list[AdminProductReportResponse],
+    dependencies=[Depends(require_admin_reports_enabled)],
+)
 async def admin_reports(
     db: DatabaseSession,
     _: Annotated[User, Depends(require_admin)],
@@ -409,7 +449,11 @@ async def admin_reports(
     return [admin_report_response(report) for report in reports]
 
 
-@router.post("/reports/{report_id}/resolve", response_model=AdminProductReportResponse)
+@router.post(
+    "/reports/{report_id}/resolve",
+    response_model=AdminProductReportResponse,
+    dependencies=[Depends(require_admin_reports_enabled)],
+)
 async def admin_resolve_report(
     report_id: UUID,
     db: DatabaseSession,

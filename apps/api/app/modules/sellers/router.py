@@ -1,14 +1,18 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.config import get_settings
 from app.dependencies import DatabaseSession, get_current_user
-from app.db.models import ContactRequest, Product, SellerProfile, Subscription, User
+from app.db.models import ContactRequest, OneTimePlacement, Product, SellerProfile, Subscription, User
 from app.modules.sellers.schemas import (
     SellerContactRequestResponse,
+    SellerPlacementPurchaseResponse,
+    SellerPlacementResponse,
+    SellerPlacementsResponse,
     SellerProductResponse,
+    SellerProductVisibilityResponse,
     SellerProfileCreate,
     SellerProfileResponse,
     SellerProfileUpdate,
@@ -18,15 +22,20 @@ from app.modules.sellers.schemas import (
     SellerSubscriptionResponse,
 )
 from app.modules.sellers.service import (
+    buy_one_time_placement,
     create_seller_profile,
+    ensure_placements_enabled,
     get_seller_profile,
+    get_seller_product_visibility,
     get_seller_stats,
     get_seller_subscription_state,
     list_seller_contact_requests,
+    list_seller_placements,
     list_seller_products,
     update_seller_contact_request,
     update_seller_profile,
 )
+from app.modules.subscriptions.service import ensure_subscriptions_enabled
 
 
 router = APIRouter(prefix="/seller", tags=["seller"])
@@ -67,6 +76,23 @@ def seller_product_response(product: Product) -> SellerProductResponse:
         created_at=product.created_at,
         updated_at=product.updated_at,
         published_at=product.published_at,
+    )
+
+
+def placement_amount_major(placement: OneTimePlacement) -> int:
+    return placement.paid_amount // 100
+
+
+def seller_placement_response(placement: OneTimePlacement) -> SellerPlacementResponse:
+    return SellerPlacementResponse(
+        placement_id=placement.id,
+        product_id=placement.product_id,
+        product_title=placement.product.title if placement.product else None,
+        paid_amount=placement_amount_major(placement),
+        currency=placement.currency,
+        paid_at=placement.paid_at,
+        status=placement.status,
+        created_at=placement.created_at,
     )
 
 
@@ -165,6 +191,52 @@ async def read_seller_products(
     return [seller_product_response(product) for product in products]
 
 
+@router.get("/products/{product_id}/visibility", response_model=SellerProductVisibilityResponse)
+async def read_seller_product_visibility(
+    product_id: UUID,
+    db: DatabaseSession,
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> SellerProductVisibilityResponse:
+    return SellerProductVisibilityResponse(
+        **await get_seller_product_visibility(db, current_user, product_id)
+    )
+
+
+@router.post(
+    "/products/{product_id}/buy-placement",
+    response_model=SellerPlacementPurchaseResponse,
+    dependencies=[Depends(ensure_placements_enabled)],
+)
+async def buy_product_placement(
+    product_id: UUID,
+    db: DatabaseSession,
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> SellerPlacementPurchaseResponse:
+    placement = await buy_one_time_placement(db, current_user, product_id)
+    return SellerPlacementPurchaseResponse(
+        ok=True,
+        placement_id=placement.id,
+        product_id=placement.product_id,
+        paid_amount=placement_amount_major(placement),
+    )
+
+
+@router.get("/placements", response_model=SellerPlacementsResponse, dependencies=[Depends(ensure_placements_enabled)])
+async def read_seller_placements(
+    db: DatabaseSession,
+    current_user: Annotated[User, Depends(get_current_user)],
+    page: int = Query(default=1, ge=1),
+    limit: int = Query(default=20, ge=1, le=100),
+) -> SellerPlacementsResponse:
+    placements, total = await list_seller_placements(db, current_user, page=page, limit=limit)
+    return SellerPlacementsResponse(
+        items=[seller_placement_response(placement) for placement in placements],
+        page=page,
+        limit=limit,
+        total=total,
+    )
+
+
 @router.get("/contact-requests", response_model=list[SellerContactRequestResponse])
 async def read_seller_contact_requests(
     db: DatabaseSession,
@@ -185,7 +257,7 @@ async def patch_seller_contact_request(
     return seller_contact_request_response(contact_request)
 
 
-@router.get("/subscription", response_model=SellerSubscriptionResponse)
+@router.get("/subscription", response_model=SellerSubscriptionResponse, dependencies=[Depends(ensure_subscriptions_enabled)])
 async def read_seller_subscription(
     db: DatabaseSession,
     current_user: Annotated[User, Depends(get_current_user)],

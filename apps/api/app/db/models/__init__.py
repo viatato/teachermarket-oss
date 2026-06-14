@@ -2,6 +2,7 @@ from app.db.models.audit_log import AuditLog
 from app.db.models.contact_request import ContactRequest
 from app.db.models.favorite import Favorite
 from app.db.models.file import File
+from app.db.models.one_time_placement import OneTimePlacement
 from app.db.models.product import Product
 from app.db.models.product_preview import ProductPreview
 from app.db.models.product_report import ProductReport
@@ -18,6 +19,7 @@ __all__ = [
     "ContactRequest",
     "Favorite",
     "File",
+    "OneTimePlacement",
     "Product",
     "ProductPreview",
     "ProductReport",

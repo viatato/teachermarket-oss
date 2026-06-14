@@ -1,4 +1,5 @@
 import asyncio
+from datetime import UTC, datetime
 from urllib import parse, request
 from uuid import UUID
 
@@ -10,6 +11,7 @@ from sqlalchemy.orm import selectinload
 from app.config import Settings, get_settings
 from app.db.models import AuditLog, ContactRequest, Product, SellerProfile, User
 from app.modules.contact_requests.schemas import ContactRequestCreate
+from app.modules.products.service import cleanup_catalog_subscriptions, visible_product_condition
 
 
 def seller_telegram_url(seller: SellerProfile) -> str | None:
@@ -21,10 +23,11 @@ def seller_telegram_url(seller: SellerProfile) -> str | None:
 
 
 async def load_contactable_product(db: AsyncSession, product_id: UUID) -> Product:
+    await cleanup_catalog_subscriptions(db)
     product = await db.scalar(
         select(Product)
         .options(selectinload(Product.seller).selectinload(SellerProfile.user))
-        .where(Product.id == product_id, Product.status == "published")
+        .where(Product.id == product_id, Product.status == "published", visible_product_condition(datetime.now(UTC)))
     )
     if product is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Матеріал не знайдено.")

@@ -18,6 +18,10 @@ class Settings(BaseSettings):
     jwt_expires_minutes: int = 10080
     default_free_product_limit: int = 3
     pro_author_product_limit: int = 50
+    feature_subscriptions_enabled: bool = True
+    feature_placements_enabled: bool = False
+    feature_reviews_enabled: bool = True
+    feature_reports_enabled: bool = True
     storage_provider: str = "local"
     local_storage_path: str = "/tmp/teachermarket_storage"
     s3_endpoint_url: str = ""

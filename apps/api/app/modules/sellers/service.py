@@ -1,15 +1,49 @@
 from datetime import UTC, datetime, timedelta
+from uuid import UUID
 
 from fastapi import HTTPException, status
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.config import get_settings
-from uuid import UUID
 
-from app.db.models import AuditLog, ContactRequest, Product, ProductViewEvent, Review, SellerProfile, Subscription, SubscriptionPlan, User
+from app.db.models import (
+    AuditLog,
+    ContactRequest,
+    OneTimePlacement,
+    Product,
+    ProductViewEvent,
+    Review,
+    SellerProfile,
+    Subscription,
+    SubscriptionPlan,
+    User,
+)
 from app.modules.sellers.schemas import SellerProfileCreate, SellerProfileUpdate
+
+
+ONE_TIME_PLACEMENT_AMOUNT = 4000
+
+
+def ensure_placements_enabled() -> None:
+    if not get_settings().feature_placements_enabled:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Функцію не знайдено.")
+
+
+def placement_checkout_available() -> bool:
+    settings = get_settings()
+    return settings.feature_placements_enabled and settings.payment_provider == "mock"
+
+
+def ensure_placement_checkout_available() -> None:
+    ensure_placements_enabled()
+    if not placement_checkout_available():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Оплата разового розміщення ще не налаштована.",
+        )
 
 
 def telegram_contact_url(username: str | None) -> str | None:
@@ -94,6 +128,200 @@ async def list_seller_products(db: AsyncSession, user: User) -> list[Product]:
     return list(result)
 
 
+def subscription_grace_until(expires_at: datetime | None) -> datetime | None:
+    if expires_at is None:
+        return None
+
+    from app.modules.subscriptions.service import SUBSCRIPTION_VISIBILITY_GRACE_PERIOD
+
+    return expires_at + SUBSCRIPTION_VISIBILITY_GRACE_PERIOD
+
+
+def subscription_visibility_reason(subscription: Subscription, now: datetime) -> str:
+    if subscription.expires_at is not None and subscription.expires_at < now:
+        return "subscription_grace"
+    return "paid_subscription"
+
+
+async def get_seller_product_visibility(db: AsyncSession, user: User, product_id: UUID) -> dict:
+    settings = get_settings()
+    profile = await require_seller_profile(db, user)
+    product = await db.scalar(select(Product).where(Product.id == product_id, Product.seller_id == profile.id))
+    if product is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Матеріал не знайдено.")
+
+    from app.modules.products.service import FREE_VISIBLE_PRODUCT_LIMIT, cleanup_catalog_subscriptions
+    from app.modules.subscriptions.service import subscription_visibility_cutoff
+
+    await cleanup_catalog_subscriptions(db)
+    now = datetime.now(UTC)
+    cutoff = subscription_visibility_cutoff(now)
+
+    visible_subscription = None
+    subscription = None
+    if settings.feature_subscriptions_enabled:
+        visible_subscription = await db.scalar(
+            select(Subscription)
+            .join(SubscriptionPlan, Subscription.plan_id == SubscriptionPlan.id)
+            .where(
+                Subscription.seller_id == profile.id,
+                Subscription.status.in_(("active", "trial")),
+                SubscriptionPlan.price_amount > 0,
+                (Subscription.expires_at.is_(None)) | (Subscription.expires_at >= cutoff),
+            )
+            .order_by(Subscription.expires_at.desc().nullslast(), Subscription.created_at.desc())
+            .limit(1)
+        )
+        subscription = visible_subscription
+        if subscription is None:
+            subscription = await db.scalar(
+                select(Subscription)
+                .join(SubscriptionPlan, Subscription.plan_id == SubscriptionPlan.id)
+                .where(
+                    Subscription.seller_id == profile.id,
+                    SubscriptionPlan.price_amount > 0,
+                )
+                .order_by(Subscription.expires_at.desc().nullslast(), Subscription.created_at.desc())
+                .limit(1)
+            )
+
+    placement = None
+    if settings.feature_placements_enabled:
+        placement = await db.scalar(
+            select(OneTimePlacement)
+            .where(
+                OneTimePlacement.product_id == product.id,
+                OneTimePlacement.status == "active",
+            )
+            .order_by(OneTimePlacement.paid_at.desc())
+            .limit(1)
+        )
+
+    published_rank = None
+    if product.status == "published":
+        published_rank = await db.scalar(
+            select(func.count(Product.id)).where(
+                Product.seller_id == profile.id,
+                Product.status == "published",
+                or_(
+                    Product.created_at < product.created_at,
+                    (Product.created_at == product.created_at) & (Product.id <= product.id),
+                ),
+            )
+        )
+        published_rank = published_rank or 0
+
+    has_paid_subscription_visibility = visible_subscription is not None
+    has_active_placement = placement is not None
+    reasons: list[str] = []
+    if product.status != "published":
+        reasons.append("not_published")
+    else:
+        if visible_subscription is not None:
+            reasons.append(subscription_visibility_reason(visible_subscription, now))
+        if has_active_placement:
+            reasons.append("one_time_placement")
+        if published_rank is not None and published_rank <= FREE_VISIBLE_PRODUCT_LIMIT:
+            reasons.append("free_tier")
+        if not reasons:
+            reasons.append("hidden_after_grace")
+
+    return {
+        "product_id": product.id,
+        "is_visible": product.status == "published" and reasons[0] not in {"not_published", "hidden_after_grace"},
+        "primary_reason": reasons[0],
+        "reasons": reasons,
+        "product_status": product.status,
+        "published_rank": published_rank,
+        "free_tier_limit": FREE_VISIBLE_PRODUCT_LIMIT,
+        "has_paid_subscription_visibility": has_paid_subscription_visibility,
+        "subscription_status": subscription.status if subscription else None,
+        "subscription_expires_at": subscription.expires_at if subscription else None,
+        "subscription_grace_until": subscription_grace_until(subscription.expires_at) if subscription else None,
+        "has_active_placement": has_active_placement,
+        "active_placement_id": placement.id if placement else None,
+        "placement_checkout_available": placement_checkout_available(),
+    }
+
+
+async def buy_one_time_placement(db: AsyncSession, user: User, product_id: UUID) -> OneTimePlacement:
+    ensure_placement_checkout_available()
+    profile = await require_seller_profile(db, user)
+    product = await db.scalar(select(Product).where(Product.id == product_id, Product.seller_id == profile.id))
+    if product is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Матеріал не знайдено.")
+    if product.status == "deleted":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Разове розміщення недоступне для видалених матеріалів.",
+        )
+
+    existing = await db.scalar(
+        select(OneTimePlacement).where(
+            OneTimePlacement.product_id == product.id,
+            OneTimePlacement.status == "active",
+        )
+    )
+    if existing is not None:
+        return existing
+
+    placement = OneTimePlacement(
+        product_id=product.id,
+        seller_id=profile.id,
+        paid_amount=ONE_TIME_PLACEMENT_AMOUNT,
+        currency="UAH",
+        status="active",
+    )
+    db.add(placement)
+    try:
+        await db.flush()
+        db.add(
+            AuditLog(
+                actor_user_id=user.id,
+                action="one_time_placement.mock_paid",
+                entity_type="one_time_placement",
+                entity_id=placement.id,
+                meta={"product_id": str(product.id), "paid_amount": ONE_TIME_PLACEMENT_AMOUNT, "currency": "UAH"},
+            )
+        )
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        existing = await db.scalar(
+            select(OneTimePlacement).where(
+                OneTimePlacement.product_id == product.id,
+                OneTimePlacement.status == "active",
+            )
+        )
+        if existing is not None:
+            return existing
+        raise
+    await db.refresh(placement)
+    return placement
+
+
+async def list_seller_placements(
+    db: AsyncSession,
+    user: User,
+    *,
+    page: int = 1,
+    limit: int = 20,
+) -> tuple[list[OneTimePlacement], int]:
+    ensure_placements_enabled()
+    profile = await require_seller_profile(db, user)
+    filters = [OneTimePlacement.seller_id == profile.id]
+    total = await db.scalar(select(func.count(OneTimePlacement.id)).where(*filters))
+    result = await db.scalars(
+        select(OneTimePlacement)
+        .options(selectinload(OneTimePlacement.product))
+        .where(*filters)
+        .order_by(OneTimePlacement.paid_at.desc(), OneTimePlacement.created_at.desc())
+        .offset((page - 1) * limit)
+        .limit(limit)
+    )
+    return list(result), total or 0
+
+
 async def list_seller_contact_requests(db: AsyncSession, user: User) -> list[ContactRequest]:
     profile = await require_seller_profile(db, user)
     result = await db.scalars(
@@ -144,6 +372,8 @@ async def get_seller_subscription_state(
     db: AsyncSession,
     user: User,
 ) -> tuple[Subscription | None, int, int]:
+    if not get_settings().feature_subscriptions_enabled:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Функцію не знайдено.")
     profile = await require_seller_profile(db, user)
     product_count = await db.scalar(
         select(func.count(Product.id)).where(
@@ -153,6 +383,8 @@ async def get_seller_subscription_state(
     )
 
     now = datetime.now(UTC)
+    from app.modules.subscriptions.service import subscription_visibility_cutoff
+
     subscription = await db.scalar(
         select(Subscription)
         .join(SubscriptionPlan, Subscription.plan_id == SubscriptionPlan.id)
@@ -160,7 +392,7 @@ async def get_seller_subscription_state(
         .where(
             Subscription.seller_id == profile.id,
             Subscription.status.in_(("active", "trial")),
-            (Subscription.expires_at.is_(None)) | (Subscription.expires_at > now),
+            (Subscription.expires_at.is_(None)) | (Subscription.expires_at >= subscription_visibility_cutoff(now)),
         )
         .order_by(SubscriptionPlan.product_limit.desc(), Subscription.expires_at.desc().nullslast())
         .limit(1)
@@ -172,6 +404,7 @@ async def get_seller_subscription_state(
 
 
 async def get_seller_stats(db: AsyncSession, user: User) -> dict:
+    settings = get_settings()
     profile = await require_seller_profile(db, user)
     status_rows = await db.execute(
         select(Product.status, func.count(Product.id))
@@ -185,8 +418,11 @@ async def get_seller_stats(db: AsyncSession, user: User) -> dict:
         select(func.count(ContactRequest.id)).where(ContactRequest.seller_id == profile.id, ContactRequest.status == "new")
     )
     product_ids = select(Product.id).where(Product.seller_id == profile.id)
-    reviews_total = await db.scalar(select(func.count(Review.id)).where(Review.product_id.in_(product_ids)))
-    average_rating = await db.scalar(select(func.avg(Review.rating)).where(Review.product_id.in_(product_ids)))
+    reviews_total = 0
+    average_rating = None
+    if settings.feature_reviews_enabled:
+        reviews_total = await db.scalar(select(func.count(Review.id)).where(Review.product_id.in_(product_ids)))
+        average_rating = await db.scalar(select(func.avg(Review.rating)).where(Review.product_id.in_(product_ids)))
     views_total = await db.scalar(select(func.count(ProductViewEvent.id)).where(ProductViewEvent.product_id.in_(product_ids)))
     views_7d = await db.scalar(
         select(func.count(ProductViewEvent.id)).where(
