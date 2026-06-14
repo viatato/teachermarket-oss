@@ -462,7 +462,7 @@ class SecurityCoreTests(unittest.TestCase):
             db = FakeDb()
             with (
                 patch("app.modules.subscriptions.service.expire_stale_subscriptions", AsyncMock()) as expire,
-                patch("app.modules.subscriptions.service.get_active_paid_subscription_by_seller_id", AsyncMock(return_value=existing)),
+                patch("app.modules.subscriptions.service.get_current_subscription_by_seller_id", AsyncMock(return_value=existing)),
             ):
                 result = await activate_or_extend_subscription(db, payment)
                 expire.assert_awaited_once_with(db, seller_id)
@@ -509,7 +509,7 @@ class SecurityCoreTests(unittest.TestCase):
             db = FakeDb()
             with (
                 patch("app.modules.subscriptions.service.expire_stale_subscriptions", AsyncMock()),
-                patch("app.modules.subscriptions.service.get_active_paid_subscription_by_seller_id", AsyncMock(return_value=None)),
+                patch("app.modules.subscriptions.service.get_current_subscription_by_seller_id", AsyncMock(return_value=None)),
             ):
                 result = await activate_or_extend_subscription(db, payment)
                 return result, db.added
