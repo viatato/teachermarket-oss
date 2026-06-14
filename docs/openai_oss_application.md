@@ -98,19 +98,19 @@ These are ongoing maintainer responsibilities, not one-off product development t
 ### Why does this repository qualify?
 
 ```text
-TeacherMarket is a self-hostable Telegram-first catalog engine for teacher communities. It is built around a 1,461-member teacher community, 44 poll responses, and 8 cloud beta testers. The OSS core addresses validated needs for catalog, moderation, author profiles, direct contact, and reusable self-hosted infrastructure.
+TeacherMarket is a self-hostable Telegram-first catalog for teacher-created learning materials. It gives small teacher communities reusable infrastructure for author profiles, moderated listings, private files, reviews, reports, and buyer-author contact. Validation includes a 1,461-member teacher community, 44 aggregate poll responses, and 8 hosted beta testers. The active AGPL core has public CI, release gates, and maintained security boundaries.
 ```
 
 ### How will you use API credits?
 
 ```text
-I will use API credits for core OSS maintenance: PR review, issue triage from teacher beta feedback, test generation for FastAPI/bot/webapp flows, release checklist automation, documentation updates, and security review around Telegram auth, uploads, storage, moderation, and payment webhooks.
+Use API credits for maintainer automation: PR and security review, issue triage, regression-test generation, migration checks, release-note drafting, and privacy-safe analysis of beta feedback. Credits would support the public AGPL core only; every generated change remains subject to maintainer review and CI before merge.
 ```
 
 ### Anything else we should know?
 
 ```text
-TeacherMarket is intentionally scoped: OSS v1 focuses on catalog, author profiles, contact requests, moderation, file uploads, and subscriptions. Direct material checkout, protected downloads, seller payouts, and commission accounting are future v2 work, so the public repository stays honest and reusable for self-hosted education communities.
+I am the primary maintainer with write access. The public repository is intentionally separated from private production infrastructure and contains no customer data or deployment secrets. Current priorities are the first public beta, contributor onboarding, stronger payment and file tests, and optional human-in-the-loop moderation assistance.
 ```
 
 ## Longer Application Narrative
@@ -125,11 +125,13 @@ OpenAI Codex would help the project move from a working MVP to a maintainable op
 
 ## Submission Readiness Checklist
 
-- [ ] GitHub profile is public.
-- [ ] `viatato/teachermarket-oss` repository is public.
-- [ ] `docs/community-validation.md` contains aggregate poll and beta tester counts.
-- [ ] Public feedback issues labeled `community-feedback` are created from non-private beta feedback.
-- [ ] Starter issues from `docs/github-starter-issues.md` are visible.
-- [ ] GitHub Actions are green on the release branch.
-- [ ] `docs/release-gates.md` is current.
+- [x] GitHub profile is public.
+- [x] `viatato/teachermarket-oss` repository is public.
+- [x] `docs/community-validation.md` contains aggregate poll and beta tester counts.
+- [x] Public feedback issues were created from non-private beta feedback.
+- [x] Starter issues from `docs/github-starter-issues.md` are visible.
+- [x] GitHub Actions are green on the release branch.
+- [x] `docs/release-gates.md` is current.
 - [ ] OpenAI Organization ID is ready.
+
+The official form was verified on June 14, 2026 at `https://openai.com/form/codex-for-oss/`. Submission also requires the maintainer's first name, last name, ChatGPT account email, benefit selections, and personal acceptance of the program terms. Do not store those values in this public repository.

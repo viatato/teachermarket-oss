@@ -1,6 +1,6 @@
 # OpenAI Codex For Open Source Application Notes
 
-This document is draft material for a future OpenAI Codex for Open Source application. Keep it honest: TeacherMarket is an early OSS core around an existing teacher ecosystem, not a widely adopted public platform yet.
+This document supports the current OpenAI Codex for Open Source application. Keep it honest: TeacherMarket is an early OSS core around an existing teacher ecosystem, not a widely adopted public platform yet.
 
 ## Short Project Description
 
@@ -57,7 +57,7 @@ Codex can help with real maintainer workload:
 | Beta testers | 8 cloud beta testers | Keep private contacts out of public docs. |
 | First sample materials | Optional before application | Use demo or consented public materials only. |
 | Public feedback issues | 4 feedback issues created | #4 tariff changes, #5 one-time author upload fee option, #6 automoderation, #7 material complaint handling. |
-| CI and tests | In progress | CI added; GitHub run still pending after push. |
+| CI and tests | Active | GitHub Actions covers API tests, bot compile, and webapp build. |
 
 ## Suggested Application Text
 
@@ -76,29 +76,28 @@ Use these compact answers for the current OpenAI Codex for Open Source form.
 ### Why does this repository qualify?
 
 ```text
-TeacherMarket is a self-hostable Telegram-first catalog engine for teacher communities. It addresses validated problems from an existing teacher audience: materials are shared through chats, folders, and DMs without catalog, moderation, author profiles, or reusable infrastructure. The OSS core is in early beta with real teacher testers and public maintainer work around docs, QA, security, and releases.
+TeacherMarket is a self-hostable Telegram-first catalog for teacher-created learning materials. It gives small teacher communities reusable infrastructure for author profiles, moderated listings, private files, reviews, reports, and buyer-author contact. Validation includes a 1,461-member teacher community, 44 aggregate poll responses, and 8 hosted beta testers. The active AGPL core has public CI, release gates, and maintained security boundaries.
 ```
 
 ### How will you use API credits?
 
 ```text
-I will use API credits for core OSS maintenance: PR review, issue triage from teacher beta feedback, test generation for FastAPI/bot/webapp flows, release checklist automation, documentation updates, and security review around Telegram auth, uploads, storage, moderation, and payment webhooks.
+Use API credits for maintainer automation: PR and security review, issue triage, regression-test generation, migration checks, release-note drafting, and privacy-safe analysis of beta feedback. Credits would support the public AGPL core only; every generated change remains subject to maintainer review and CI before merge.
 ```
 
 ### Anything else we should know?
 
 ```text
-TeacherMarket is intentionally scoped: OSS v1 focuses on catalog, author profiles, contact requests, moderation, file uploads, and subscriptions. Direct material checkout, protected downloads, seller payouts, and commission accounting are future v2 work, so the public repository stays honest and reusable for self-hosted education communities.
+I am the primary maintainer with write access. The public repository is intentionally separated from private production infrastructure and contains no customer data or deployment secrets. Current priorities are the first public beta, contributor onboarding, stronger payment and file tests, and optional human-in-the-loop moderation assistance.
 ```
 
 ## Application Readiness Actions
 
-- Fill `docs/community-validation.md` with aggregate counts from both polls and the cloud beta tester list.
-- Use the `Кастдев Тічери` form for general teacher pain points and the `ТічерМаркет — опитування для викладачів` form for product-specific demand.
-- Repeated beta feedback has been converted into public GitHub issues labeled `community-feedback`.
-- Make sure `viatato/teachermarket-oss` and the maintainer GitHub profile are public before submitting.
-- Confirm starter issues, release gates, CI status, and security docs are visible in the public repository.
-- Prepare the OpenAI Organization ID before opening the form.
+- Public aggregate validation, feedback issues, starter issues, release gates, CI, and security documentation are ready.
+- The official form is `https://openai.com/form/codex-for-oss/`.
+- The form was verified on June 14, 2026; the three narrative fields allow up to 500 characters.
+- Submission still needs first name, last name, ChatGPT account email, OpenAI Organization ID, benefit selections, and personal acceptance of the program terms.
+- Keep all personal account fields and the Organization ID out of this public repository.
 
 ## Wording To Avoid
 
