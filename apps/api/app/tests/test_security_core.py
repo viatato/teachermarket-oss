@@ -6,7 +6,7 @@ import os
 import unittest
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 from urllib.parse import urlencode
 from uuid import UUID, uuid4
 
@@ -27,10 +27,16 @@ from app.modules.products.router import view_product
 from app.modules.products.schemas import CatalogProductDetail, CatalogProductListItem, ProductCreate
 from app.modules.products.service import anonymous_view_key, delete_product, submit_product, track_product_view, update_product
 from app.modules.subscriptions.router import mark_paid
-from app.modules.subscriptions.service import activate_or_extend_subscription, mark_mock_payment_paid, validate_webhook_event
+from app.modules.subscriptions.service import (
+    activate_or_extend_subscription,
+    mark_mock_payment_paid,
+    process_payment_webhook,
+    validate_webhook_event,
+)
 from app.security.rate_limit import rate_limit
 from app.services.payments.base import PaymentWebhookEvent
 from app.services.payments.mock import MockPaymentProvider
+from app.services.payments.states import canonical_payment_status, payment_transition_allowed
 from app.services.payments.wayforpay import (
     WayForPayProvider,
     amount_to_wayforpay,
@@ -371,6 +377,72 @@ class SecurityCoreTests(unittest.TestCase):
         with self.assertRaises(HTTPException) as ctx:
             provider.verify_webhook(raw_body=raw_body, headers={"x-payment-signature": "bad"}, settings=settings)
         self.assertEqual(ctx.exception.status_code, 401)
+
+    def test_payment_statuses_are_canonical_and_transitions_are_explicit(self) -> None:
+        self.assertEqual(canonical_payment_status("succeeded"), "paid")
+        self.assertEqual(canonical_payment_status("cancelled"), "canceled")
+        self.assertIsNone(canonical_payment_status("processing"))
+        self.assertTrue(payment_transition_allowed("created", "failed"))
+        self.assertTrue(payment_transition_allowed("failed", "paid"))
+        self.assertFalse(payment_transition_allowed("failed", "canceled"))
+        self.assertFalse(payment_transition_allowed("paid", "failed"))
+
+    def test_duplicate_terminal_webhook_is_idempotent(self) -> None:
+        async def run_check() -> tuple[SubscriptionPayment, int, int]:
+            payment = SubscriptionPayment(
+                id=uuid4(),
+                seller_id=uuid4(),
+                plan_id=uuid4(),
+                provider="mock",
+                provider_payment_id="mock_payment",
+                status="failed",
+                amount=29900,
+                currency="UAH",
+            )
+            event = PaymentWebhookEvent(
+                status="failed",
+                provider_payment_id="mock_payment",
+                amount=29900,
+                currency="UAH",
+                subscription_payment_id=payment.id,
+                raw_payload={"status": "failed"},
+            )
+            provider = SimpleNamespace(
+                code="mock",
+                verify_webhook=Mock(),
+                parse_event=Mock(return_value=event),
+            )
+
+            class FakeDb:
+                def __init__(self) -> None:
+                    self.commits = 0
+                    self.added = []
+
+                async def commit(self) -> None:
+                    self.commits += 1
+
+                def add(self, item) -> None:
+                    self.added.append(item)
+
+            db = FakeDb()
+            with (
+                patch("app.modules.subscriptions.service.get_payment_provider", return_value=provider),
+                patch(
+                    "app.modules.subscriptions.service.load_payment_by_provider_id",
+                    AsyncMock(return_value=payment),
+                ),
+            ):
+                result, _ = await process_payment_webhook(
+                    db,
+                    provider_code="mock",
+                    raw_body=b"{}",
+                    headers={},
+                )
+            return result, db.commits, len(db.added)
+
+        result, commits, added = asyncio.run(run_check())
+        self.assertEqual(result.status, "failed")
+        self.assertEqual((commits, added), (0, 0))
 
     def test_webhook_amount_currency_and_payment_id_validation(self) -> None:
         payment_id = uuid4()
