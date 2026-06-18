@@ -6,7 +6,6 @@ from unittest.mock import AsyncMock, patch
 from uuid import UUID, uuid4
 
 from fastapi import HTTPException
-from fastapi.routing import APIRoute
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.dialects import postgresql
 
@@ -18,6 +17,7 @@ from app.modules.sellers.router import buy_product_placement, read_seller_placem
 from app.config import get_settings
 from app.modules.sellers.service import ONE_TIME_PLACEMENT_AMOUNT, buy_one_time_placement, get_seller_product_visibility
 from app.modules.subscriptions.service import activate_or_extend_subscription, subscription_visibility_cutoff
+from app.tests.route_helpers import route_dependency_calls, route_for_endpoint
 
 
 class PlacementFeatureTests(unittest.TestCase):
@@ -195,8 +195,7 @@ class PlacementFeatureTests(unittest.TestCase):
     def test_seller_placement_routes_require_current_user_not_admin(self) -> None:
         app = create_app()
         for endpoint in (buy_product_placement, read_seller_placements, read_seller_product_visibility):
-            route = next(route for route in app.routes if isinstance(route, APIRoute) and route.endpoint is endpoint)
-            dependency_calls = {dependency.call for dependency in route.dependant.dependencies}
+            dependency_calls = route_dependency_calls(route_for_endpoint(app, endpoint))
             self.assertIn(get_current_user, dependency_calls)
             self.assertNotIn(require_admin, dependency_calls)
 
