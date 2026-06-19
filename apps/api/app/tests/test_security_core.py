@@ -11,7 +11,6 @@ from urllib.parse import urlencode
 from uuid import UUID, uuid4
 
 from fastapi import HTTPException
-from fastapi.routing import APIRoute
 
 from app.config import get_settings, validate_runtime_settings
 from app.db.models import Subscription, SubscriptionPayment, SubscriptionPlan, User
@@ -37,6 +36,7 @@ from app.security.rate_limit import rate_limit
 from app.services.payments.base import PaymentWebhookEvent
 from app.services.payments.mock import MockPaymentProvider
 from app.services.payments.states import canonical_payment_status, payment_transition_allowed
+from app.tests.route_helpers import route_dependency_calls, route_for_endpoint
 from app.services.payments.wayforpay import (
     WayForPayProvider,
     amount_to_wayforpay,
@@ -177,21 +177,18 @@ class SecurityCoreTests(unittest.TestCase):
 
     def test_mock_mark_paid_route_requires_admin(self) -> None:
         app = create_app()
-        route = next(route for route in app.routes if isinstance(route, APIRoute) and route.endpoint is mark_paid)
-        dependency_calls = {dependency.call for dependency in route.dependant.dependencies}
+        dependency_calls = route_dependency_calls(route_for_endpoint(app, mark_paid))
         self.assertIn(require_admin, dependency_calls)
 
     def test_admin_product_and_file_routes_require_admin(self) -> None:
         app = create_app()
         for endpoint in (read_admin_product, download_admin_file):
-            route = next(route for route in app.routes if isinstance(route, APIRoute) and route.endpoint is endpoint)
-            dependency_calls = {dependency.call for dependency in route.dependant.dependencies}
+            dependency_calls = route_dependency_calls(route_for_endpoint(app, endpoint))
             self.assertIn(require_admin, dependency_calls)
 
     def test_product_view_route_allows_optional_auth(self) -> None:
         app = create_app()
-        route = next(route for route in app.routes if isinstance(route, APIRoute) and route.endpoint is view_product)
-        dependency_calls = {dependency.call for dependency in route.dependant.dependencies}
+        dependency_calls = route_dependency_calls(route_for_endpoint(app, view_product))
         self.assertNotIn(require_admin, dependency_calls)
 
     def test_admin_file_route_returns_404_for_missing_file(self) -> None:

@@ -6,7 +6,6 @@ from unittest.mock import patch
 from uuid import uuid4
 
 from fastapi import HTTPException
-from fastapi.routing import APIRoute
 from sqlalchemy.dialects import postgresql
 
 from app.config import Settings, get_settings
@@ -32,6 +31,7 @@ from app.modules.sellers.service import (
 )
 from app.modules.subscriptions.router import checkout_subscription, mark_paid, subscription_plans
 from app.modules.subscriptions.service import ensure_subscriptions_enabled
+from app.tests.route_helpers import route_dependency_calls, route_for_endpoint
 
 
 class NoDbAccess:
@@ -48,8 +48,7 @@ class FeatureFlagTests(unittest.TestCase):
 
     def dependency_calls_for(self, endpoint) -> set:
         app = create_app()
-        route = next(route for route in app.routes if isinstance(route, APIRoute) and route.endpoint is endpoint)
-        return {dependency.call for dependency in route.dependant.dependencies}
+        return route_dependency_calls(route_for_endpoint(app, endpoint))
 
     def compile_visibility_sql(self) -> str:
         now = datetime(2026, 6, 4, 12, 0, tzinfo=UTC)
