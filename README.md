@@ -113,6 +113,9 @@ docker compose --profile app exec api python -m app.db.seed
 - [Repository boundaries](docs/repository-boundaries.md)
 - [Architecture](docs/architecture.md)
 - [Self-hosting](docs/self-hosting.md)
+- [Service rules](docs/service-rules.md)
+- [Material complaint policy](docs/complaint-policy.md)
+- [Author onboarding](docs/author-onboarding.md)
 - [Roadmap](docs/roadmap.md)
 - [Codex guide](docs/codex.md)
 - [Community validation](docs/community-validation.md)
@@ -137,6 +140,7 @@ The current public API covers:
 - subscription payment webhooks for mock and WayForPay providers
 
 Production disables `/docs`, `/redoc`, and `/openapi.json`.
+`GET /health` includes the configured `RELEASE_ID` so operators can match a running deployment to an exact build or commit.
 
 ## Security Model
 

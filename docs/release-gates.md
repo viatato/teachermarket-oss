@@ -1,98 +1,71 @@
-# Public Release Gates
+# v0.2.0-beta Release Gates
 
-These checks must be complete before tagging `v0.1.0-beta`.
+This is the live checklist for the next beta. Completed `v0.1.0-beta` evidence remains in Git history; it must not be reused as proof that a new release candidate passed.
+
+Record the candidate commit, test date, operator, and hosted deployment separately. Do not add private domains, server paths, user identities, credentials, or raw Telegram `initData` to this public repository.
 
 ## Automated
 
-- [x] `cd apps/api && python -m unittest discover app/tests -v`
-- [x] `cd apps/api && alembic upgrade head`
-- [x] `cd apps/bot && python -m compileall bot`
-- [x] `cd apps/webapp && npm run build`
-- [x] `git diff --check`
-- [x] `python3 scripts/release_readiness.py --skip-commands`
-- [x] GitHub Actions CI green
+- [ ] `cd apps/api && python -m unittest discover app/tests -v`
+- [ ] `cd apps/api && alembic heads` reports exactly one head.
+- [ ] `cd apps/api && alembic upgrade head` succeeds against a disposable database.
+- [ ] `cd apps/bot && python -m compileall bot`
+- [ ] `cd apps/webapp && npm ci && npm run build`
+- [ ] `python3 scripts/release_readiness.py --skip-commands`
+- [ ] `git diff --check`
+- [ ] `gitleaks dir --redact --no-banner .`
+- [ ] `gitleaks git --log-opts=HEAD --redact --no-banner`
+- [ ] GitHub Actions CI is green on the exact release candidate.
 
-The release readiness script is a read-only summary helper for local or
-production smoke signals. It does not replace the manual Telegram-client smoke
-test because real Mini App auth depends on Telegram-provided `initData`.
+The release-readiness script is read-only and can perform negative HTTP checks against a supplied API URL. The history scan is deliberately limited to commits reachable from the candidate `HEAD`, so unrelated private remotes or local branches do not create false release blockers. It does not replace migration, storage, backup, or real Telegram-client testing.
 
 ## Public Repository Safety
 
-- [x] `docs/public-release-checklist.md` completed.
-- [x] Secret scan commands from `docs/post-implementation-audit.md` reviewed.
-- [x] Commit history checked before publication; the public repository uses a clean reviewed mirror history.
-- [x] Previously exposed production credentials were rotated outside the public repository.
-- [x] No real seller, buyer, teacher-community, moderation, support, payment, cloud, or admin data included.
-- [x] No private TeacherMarket Cloud or TeacherBoard business logic included.
-- [x] Unsafe private/commercial history was excluded through the clean public mirror flow.
+- [ ] The candidate contains only reusable OSS code and public-safe documentation.
+- [ ] No `.env`, production config, private runbook, real domain/IP/path, dump, customer data, teacher material, payment payload, or private screenshot is present.
+- [ ] [Service rules](service-rules.md), [complaint policy](complaint-policy.md), and [author onboarding](author-onboarding.md) match the implemented OSS v1 model.
+- [ ] Direct material checkout, buyer downloads, payouts, and hosted operations remain outside OSS v1.
+- [ ] Any real credential found in any source repository has been rotated; scan output and secret values are not committed.
+
+## Release Identity
+
+- [ ] The deployment sets `RELEASE_ID` to the release tag or immutable commit/build identifier.
+- [ ] `GET /health` returns the expected `release`, `environment`, and database status.
+- [ ] The running `release` exactly matches the candidate tested below.
 
 ## Manual Telegram Smoke
 
-- [ ] Telegram `/start` opens the correct menu.
-- [ ] Mini App opens from Telegram.
-- [ ] `POST /auth/telegram` accepts real signed `initData`.
-- [ ] Favorites sync to the authenticated user.
-- [ ] Buyer can create a contact request.
-- [ ] Seller receives/sees the contact request.
-- [ ] Seller can upload previews and a product file.
-- [ ] Seller can submit a material.
-- [ ] Admin can approve, reject, request changes, hide, and restore.
-- [ ] Buyer can create, edit, and delete own review.
-- [ ] Buyer can report a product.
+- [ ] Telegram `/start` opens the expected Ukrainian menu.
+- [ ] Mini App opens from Telegram on iOS and Android.
+- [ ] `POST /auth/telegram` accepts real signed Telegram `initData`; raw `initData` is not saved in evidence.
+- [ ] Favorites sync to the authenticated buyer.
+- [ ] Buyer can create a contact request and the seller can see it.
+- [ ] Seller can create a profile, see service rules, upload previews and a private product file, and submit a material.
+- [ ] Admin can approve, reject, request changes, hide, restore, and resolve a report.
+- [ ] Buyer can create, edit, and delete their own review and report a material.
+- [ ] The author onboarding checklist is completed with a test author or approved beta author.
+
+## Payments And Visibility
+
+- [ ] OSS v1 copy never claims that TeacherMarket sells individual materials or pays authors out.
+- [ ] The beta deployment uses mock/manual subscription activation or an explicitly approved provider configuration; unintended live checkout is unavailable.
+- [ ] Non-admin users cannot mark mock subscription or placement payments paid.
+- [ ] Wrong webhook signatures fail and duplicate valid webhooks are idempotent.
+- [ ] Product visibility correctly follows the enabled free tier, subscription, grace-period, and optional one-time-placement rules.
+- [ ] Disabled subscription, placement, review, and report modules return the documented unavailable behavior.
 
 ## Security And Infrastructure
 
-- [x] Main product file is not publicly accessible.
-- [x] Non-admin cannot access admin moderation routes.
-- [x] Non-admin cannot mark mock payments paid.
-- [x] Wrong payment webhook signature fails.
-- [x] Duplicate payment webhook does not extend subscription twice.
-- [x] Daily backup timer is active in the hosted reference deployment.
-- [x] Backup restore tested into a non-production database.
-- [x] R2/private bucket runtime access verified with unsigned object requests.
-- [ ] R2 lifecycle/retention policy verified in the provider console.
-- [x] No secrets in the public repo, docs, GitHub Actions, screenshots, or release notes.
+- [ ] Main product files are not publicly accessible; preview delivery follows the deployment's documented policy.
+- [ ] Non-admin users cannot access moderation or private-file routes.
+- [ ] Backup freshness and retention meet the deployment policy (recommended minimum: 14 days).
+- [ ] A current backup restores successfully into a disposable non-production database.
+- [ ] S3/R2/MinIO private-object access is verified with unsigned requests.
+- [ ] CORS, HTTPS, rate limits, error monitoring, and uptime monitoring match the hosted deployment's risk profile.
 
-## GitHub Readiness
+## Release Approval
 
-- [x] Repository is public.
-- [x] Repository description and topics/tags are set.
-- [x] Issue templates are present in `.github/ISSUE_TEMPLATE/`.
-- [x] Pull request template is present.
-- [x] Labels from `.github/labels.yml` are created in GitHub.
-- [x] Milestones from `.github/milestones.md` are created in GitHub.
-- [x] Starter issues from `docs/github-starter-issues.md` are created.
-- [x] Starter issues include `good first issue` labels.
-- [x] Starter issues include `codex-friendly` labels.
-- [ ] First release is tagged only after this checklist passes.
-
-## Community
-
-- [x] Teacher poll run.
-- [x] Problems/pain-points poll summarized.
-- [x] Beta tester interest collected.
-- [x] Cloud beta tester count documented as an aggregate.
-- [x] Seller interest collected.
-- [x] Buyer/user interest collected.
-- [x] Teacher community size documented honestly.
-- [x] Feedback themes summarized in `docs/community-validation.md`.
-- [x] Public issues created from non-private feedback.
-- [x] Raw poll exports and tester identities kept outside the public repository.
-
-## OpenAI Codex For OSS Application
-
-- [x] `docs/openai_oss_application.md` updated with current facts.
-- [x] `docs/openai-application-notes.md` updated with current facts.
-- [x] Application text says the project is early/beta if still in beta.
-- [x] Application text does not overclaim adoption.
-- [x] Maintainer role is clear.
-- [x] Codex use cases are specific: review, triage, tests, security, migrations, docs, releases.
-- [x] Community proof points are linked or summarized.
-- [x] GitHub profile and repository visibility are public before submission.
-- [ ] OpenAI Organization ID is prepared.
-- [x] Form answers fit the current character limits.
-- [ ] Application submitted by the maintainer with personal account details and terms acceptance.
-
-## Local Agent Guardrails
-
-- [x] Local agent-memory verification guardrails resolved before current publication work.
+- [ ] No open P0/P1 issue affects authentication, roles, private files, payments, or data integrity.
+- [ ] Release notes describe user-visible changes and known beta limits without private operational details.
+- [ ] The candidate commit is merged to public `main` before the tag is created.
+- [ ] `v0.2.0-beta` is tagged from that exact commit only after every applicable gate above is complete.

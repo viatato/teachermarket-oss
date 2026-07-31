@@ -57,6 +57,8 @@ Do not run this flow until the copied tree has been reviewed. If any real secret
 - [ ] `cd apps/bot && python -m compileall bot`
 - [ ] `cd apps/webapp && npm ci && npm run build`
 - [ ] `git diff --check`
+- [ ] `gitleaks dir --redact --no-banner .`
+- [ ] `gitleaks git --log-opts=HEAD --redact --no-banner`
 - [ ] GitHub Actions CI is green on the release branch.
 
 ## Product Positioning
@@ -65,6 +67,8 @@ Do not run this flow until the copied tree has been reviewed. If any real secret
 - [ ] OSS v1 does not claim to sell individual materials on behalf of authors.
 - [ ] OSS v1 does not claim to process seller payouts.
 - [ ] Direct checkout, protected buyer downloads, orders, and payouts are documented only as future v2 work.
+- [ ] Service rules, complaint policy, and author onboarding are public, internally linked, and consistent with OSS v1 behavior.
+- [ ] `GET /health` exposes a non-secret `release` value populated from `RELEASE_ID`.
 
 ## Community And Application Readiness
 

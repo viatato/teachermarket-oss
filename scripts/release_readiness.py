@@ -8,6 +8,7 @@ and, when an API URL is provided, perform negative HTTP smoke checks.
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import subprocess
 import sys
@@ -64,6 +65,24 @@ def http_status(url: str, *, method: str = "GET") -> tuple[int | None, str]:
         return None, "timeout"
 
 
+def http_json(url: str) -> tuple[int | None, str, dict[str, object] | None]:
+    request = Request(url, method="GET")
+    try:
+        with urlopen(request, timeout=8) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+            if not isinstance(payload, dict):
+                return response.status, "response is not a JSON object", None
+            return response.status, "ok", payload
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        return None, f"invalid JSON: {exc}", None
+    except HTTPError as exc:
+        return exc.code, exc.reason, None
+    except URLError as exc:
+        return None, str(exc.reason), None
+    except TimeoutError:
+        return None, "timeout", None
+
+
 def check_http(args: argparse.Namespace) -> list[Check]:
     if not args.api_base_url:
         return [Check("HTTP smoke", "skip", "no --api-base-url provided")]
@@ -71,12 +90,24 @@ def check_http(args: argparse.Namespace) -> list[Check]:
     base_url = args.api_base_url.rstrip("/")
     checks: list[Check] = []
 
-    status, detail = http_status(f"{base_url}/health")
+    status, detail, health_payload = http_json(f"{base_url}/health")
     checks.append(
         Check(
             "API health",
             "pass" if status == 200 else "fail",
             f"{status or 'unreachable'} {detail}",
+        )
+    )
+    release_id = health_payload.get("release") if health_payload else None
+    release_matches = bool(release_id) and (
+        not args.expected_release or release_id == args.expected_release
+    )
+    expected_detail = f"expected {args.expected_release}" if args.expected_release else "non-empty release required"
+    checks.append(
+        Check(
+            "API release identity",
+            "pass" if release_matches else "fail",
+            f"reported {release_id!r}; {expected_detail}",
         )
     )
 
@@ -127,6 +158,23 @@ def check_static() -> list[Check]:
             "docs/release-gates.md",
         ),
         Check(
+            "Public rules and onboarding documented",
+            "pass"
+            if file_contains("docs/service-rules.md", ["Platform Role", "Author Rules", "Moderation"])
+            and file_contains("docs/complaint-policy.md", ["Current Workflow", "Privacy", "Known OSS v1 Limits"])
+            and file_contains("docs/author-onboarding.md", ["Before The First Upload", "Material Checklist", "First Publication"])
+            else "fail",
+            "docs/service-rules.md, docs/complaint-policy.md, docs/author-onboarding.md",
+        ),
+        Check(
+            "Release identity exposed by health endpoint",
+            "pass"
+            if file_contains("apps/api/app/config.py", ["release_id"])
+            and file_contains("apps/api/app/main.py", ['"release": current_settings.release_id'])
+            else "fail",
+            "RELEASE_ID -> GET /health.release",
+        ),
+        Check(
             "Storage privacy expectations documented",
             "pass" if file_contains("docs/self-hosting.md", ["Keep product files private", "S3/R2"]) else "fail",
             "docs/self-hosting.md",
@@ -174,6 +222,12 @@ def command_checks(skip_commands: bool) -> list[Check]:
         run_command("Bot compile", [python, "-m", "compileall", "bot"], ROOT / "apps/bot"),
         run_command("Webapp build", ["npm", "run", "build"], ROOT / "apps/webapp"),
         run_command("Git diff whitespace", ["git", "diff", "--check"], ROOT),
+        run_command("Gitleaks working tree", ["gitleaks", "dir", "--redact", "--no-banner", "."], ROOT),
+        run_command(
+            "Gitleaks candidate history",
+            ["gitleaks", "git", "--log-opts=HEAD", "--redact", "--no-banner"],
+            ROOT,
+        ),
     ]
 
 
@@ -202,6 +256,11 @@ def parse_args() -> argparse.Namespace:
         help="Optional running API base URL, e.g. http://localhost:8000",
     )
     parser.add_argument("--production", action="store_true", help="Expect production-only protections such as disabled docs.")
+    parser.add_argument(
+        "--expected-release",
+        default="",
+        help="Require /health.release to equal this tag, commit, or immutable build identifier.",
+    )
     parser.add_argument("--skip-commands", action="store_true", help="Skip local test/build/git commands.")
     return parser.parse_args()
 

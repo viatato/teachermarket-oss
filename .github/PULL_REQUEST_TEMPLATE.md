@@ -20,6 +20,8 @@
 - [ ] `cd apps/bot && python -m compileall bot`
 - [ ] `cd apps/webapp && npm run build`
 - [ ] `git diff --check`
+- [ ] `gitleaks dir --redact --no-banner .`
+- [ ] `gitleaks git --log-opts=HEAD --redact --no-banner`
 
 ## Migration notes
 

@@ -60,3 +60,9 @@ Where practical, self-hosters should offer authors a private appeal path. Appeal
 - The system does not classify legal claims or replace qualified legal review.
 
 These limits are intentional for the small OSS v1 core. Deployments needing formal case management should add it as a private or optional module without weakening reporter privacy.
+
+## Related Guidance
+
+- Publish an adapted version of the [service rules](service-rules.md) before inviting users.
+- Include the complaint process in [author onboarding](author-onboarding.md).
+- Configure a private support route; do not direct users to a public issue tracker for reports containing identities, report text, or private materials.
