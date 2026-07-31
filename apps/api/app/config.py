@@ -7,6 +7,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     app_env: str = "local"
     app_name: str = "teachermarket"
+    release_id: str = "development"
     api_base_url: str = "http://localhost:8000"
     webapp_url: str = "http://localhost:5173"
     database_url: str = "postgresql+asyncpg://teachermarket:teachermarket@localhost:5432/teachermarket"

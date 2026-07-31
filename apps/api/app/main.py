@@ -32,6 +32,7 @@ async def health() -> dict[str, object]:
     return {
         "status": "ok" if database_ok else "degraded",
         "app": current_settings.app_name,
+        "release": current_settings.release_id,
         "environment": current_settings.app_env,
         "database": "ok" if database_ok else "unavailable",
     }

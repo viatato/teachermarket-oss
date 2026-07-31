@@ -164,7 +164,7 @@ Payments are for author subscriptions only. TeacherMarket OSS v1 does not proces
 
 ## Complaints and Moderation
 
-Before inviting users, publish community rules, choose a private support channel, and assign an admin responsible for reports. Use [the material complaint policy](complaint-policy.md) as a baseline, then adapt response targets and retention periods to your deployment and jurisdiction.
+Before inviting users, adapt and publish the [service rules](service-rules.md), choose a private support channel, and assign an admin responsible for reports. Use [the material complaint policy](complaint-policy.md) as a baseline, then adapt response targets and retention periods to your deployment and jurisdiction. Walk initial sellers through the [author onboarding checklist](author-onboarding.md).
 
 ## Static Webapp Deployment
 
